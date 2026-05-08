@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#2a3447" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="format-detection" content="telephone=no" />
+<title>残りいくら</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Yomogi&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- React + Babel (UMD, GitHub Pages friendly) -->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+
+<style>
+/* ============================================================
+   Sketchy wireframe — Navy palette (固定)
+   ============================================================ */
+:root {
+  --ink: #2a3447;
+  --ink-soft: #5d6577;
+  --ink-faint: #9aa1ad;
+  --paper: #fafaf6;
+  --paper-warm: #f1eee4;
+  --line: #d8d4c8;
+  --accent: oklch(0.62 0.13 45);
+  --accent-2: oklch(0.55 0.10 240);
+
+  --font-hand: 'Klee One', sans-serif;
+  --font-hand-jp: 'Yomogi', 'Klee One', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 68px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; width: 100%; min-height: 100%; }
+html { background: var(--paper); }
+body {
+  background: var(--paper);
+  font-family: var(--font-hand);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+/* iOS overscroll bounce背景の継続 */
+body::before {
+  content: ""; position: fixed; inset: 0;
+  background: var(--paper); z-index: -1;
+}
+
+#root { width: 100%; min-height: 100vh; }
+
+/* App container — フルスクリーン */
+.app-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--paper);
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+}
+
+/* スクロール領域 */
+.view {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--paper);
+}
+
+/* ============================================================
+   原Stylesheet移植
+   ============================================================ */
+.sketch-box { border: 1.5px solid var(--ink); border-radius: 6px; background: var(--paper); position: relative; }
+.sketch-box.dashed { border-style: dashed; border-width: 1.2px; }
+
+.handwriting { font-family: var(--font-hand-jp); }
+.mono { font-family: var(--font-mono); }
+
+.bar-track { height: 14px; background: var(--paper-warm); border: 1.2px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--ink); }
+.bar-fill.diagonal {
+  background: repeating-linear-gradient(45deg, var(--ink) 0, var(--ink) 3px, var(--ink-soft) 3px, var(--ink-soft) 6px);
+}
+.bar-fill.light { background: var(--ink-faint); }
+.bar-fill.accent { background: var(--accent); }
+
+.notebook-bg {
+  background-image:
+    linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.chip {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border: 1px solid var(--ink); border-radius: 999px;
+  font-size: 12px; background: var(--paper); font-family: var(--font-hand-jp);
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.chip.active { background: var(--ink); color: var(--paper); }
+
+.tab-row { display: flex; gap: 6px; border-bottom: 1.2px solid var(--ink); padding: 0 16px; overflow-x: auto; }
+.tab {
+  padding: 8px 14px 6px; font-family: var(--font-hand-jp); font-size: 14px;
+  border: 1.2px solid var(--ink); border-bottom: none; border-radius: 8px 8px 0 0;
+  background: var(--paper-warm); margin-bottom: -1.2px; cursor: pointer;
+  flex-shrink: 0; user-select: none;
+}
+.tab.active { background: var(--ink); color: var(--paper); }
+
+.section-rule { border: 0; border-top: 1px dashed var(--ink-faint); margin: 12px 16px; }
+.big-num { font-family: var(--font-mono); font-weight: 500; letter-spacing: -0.02em; }
+
+.insight-box {
+  border: 1.2px dashed var(--ink-soft);
+  border-radius: 8px; padding: 10px 12px;
+  background: var(--paper-warm); font-family: var(--font-hand-jp);
+  font-size: 12px; line-height: 1.5; color: var(--ink);
+}
+.insight-box .accent { color: var(--accent); font-weight: 600; }
+
+/* スクロールバー隠し（横スクロール用） */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* 下部タブバー — fixed */
+.tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 380px;
+  display: flex;
+  background: var(--paper);
+  border: 1.2px solid var(--ink);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 2px;
+  z-index: 100;
+  box-shadow: 0 6px 18px rgba(42,52,71,0.18);
+}
+.tabbar-item {
+  flex: 1; text-align: center; padding: 8px 4px;
+  font-family: var(--font-hand-jp); font-size: 11px;
+  border-radius: 999px; cursor: pointer; user-select: none;
+  color: var(--ink-soft);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.tabbar-item.active { background: var(--ink); color: var(--paper); font-weight: 600; }
+.tabbar-icon { font-size: 16px; line-height: 1; }
+.tabbar-label { margin-top: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ============================================================
+     データ (mock.jsx)
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+const MOCK = {
+  today: { dateLabel: '2026.04.29 水', daysLeft: 4, monthDaysLeft: 1 },
+  insight: '外食が進んでる月。ごちそうは控えめにすると年間で帳尻が合いそう',
+
+  food: [
+    { name: 'スーパー',     rem: '¥41,800',  pct: 38, period: '今週' },
+    { name: 'コンビニ',     rem: '¥330',      pct: 67, period: '今週' },
+    { name: '外食',         rem: '¥7,200',    pct: 72, period: '今月', warn: true },
+    { name: '健康食品',     rem: '¥2,400',    pct: 22, period: '今週' },
+  ],
+  trio: [
+    { name: '外食',           rem: '¥7,200',  pct: 72, warn: true },
+    { name: 'ごちそう',       rem: '¥9,200',  pct: 23 },
+    { name: 'スペシャルデート', rem: '¥14,900', pct: 17 },
+  ],
+  daily: [
+    { name: '日用品',       rem: '¥6,200',  pct: 52 },
+    { name: '日用品＿子供', rem: '¥1,800',  pct: 40 },
+    { name: '学校教材費',   rem: '¥770',    pct: 55 },
+    { name: '交通費',       rem: '¥1,000',  pct: 67 },
+  ],
+  health: [
+    { name: '医療・薬タカフミ', rem: '¥1,200',  pct: 60 },
+    { name: '医療・薬シホ',     rem: '−¥1,200', pct: 100, warn: true },
+    { name: '鍼灸タカフミ',     rem: '¥1,000',  pct: 0 },
+    { name: '鍼灸シホ',         rem: '¥800',    pct: 20 },
+  ],
+  beauty: [
+    { name: 'ヘアサロン',     rem: '¥0',      pct: 100, warn: true },
+    { name: '被服タカフミ',   rem: '¥40,000', pct: 0,   season: '夏' },
+    { name: '被服シホ',       rem: '¥27,900', pct: 30,  season: '夏' },
+    { name: '被服エイタ',     rem: '¥16,000', pct: 0,   season: '夏' },
+    { name: '被服マイ',       rem: '−¥965',   pct: 106, season: '夏', warn: true },
+    { name: '化粧品',         rem: '¥18,200', pct: 35 },
+  ],
+  fun: [
+    { name: 'ごちそう',         rem: '¥9,200',   pct: 23 },
+    { name: 'スペシャルデート', rem: '¥14,900',  pct: 17 },
+    { name: '子供ゆとり費',     rem: '¥3,500',   pct: 30 },
+    { name: 'レジャー',         rem: '¥2,100',   pct: 30 },
+  ],
+  family: [
+    { name: 'タカフミ', rem: '¥40,000',  pct: 0 },
+    { name: 'シホ',     rem: '¥27,900',  pct: 30 },
+    { name: 'エイタ',   rem: '¥16,000',  pct: 0 },
+    { name: 'マイ',     rem: '−¥965',    pct: 106, warn: true },
+  ],
+  yearGroups: [
+    { name: '☕️ 交際費',     rem: '¥538,560', pct: 13 },
+    { name: '🏥 健康・医療', rem: '¥18,650',  pct: 63 },
+    { name: '❗️ 特別な支出', rem: '¥257,147', pct: 50 },
+  ],
+};
+window.MOCK = MOCK;
+</script>
+
+<!-- ============================================================
+     Wireframe A — サイクルビュー
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function ItemRow({ name, rem, pct, warn }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px dashed var(--line)' }}>
+      <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{name}</div>
+      <div style={{ width: 60, height: 5, background: 'var(--paper-warm)', border: '0.8px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: Math.min(100, pct) + '%', height: '100%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
+      </div>
+      <div className="mono" style={{ fontSize: 12, width: 72, textAlign: 'right', color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
+    </div>
+  );
+}
+
+function GroupCard({ title, total, sub, pct, items, accentBg, seasonBar }) {
+  return (
+    <div className="sketch-box" style={{ padding: 14, background: accentBg ? 'var(--paper-warm)' : 'var(--paper)' }}>
+      <div className="handwriting" style={{ fontSize: 15, fontWeight: 600 }}>{title}</div>
+      <div className="big-num" style={{ fontSize: accentBg ? 28 : 22, marginTop: 4 }}>{total}</div>
+      {sub && <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{sub}</div>}
+      <div className="bar-track" style={{ height: accentBg ? 14 : 10, margin: '8px 0' }}>
+        <div className="bar-fill diagonal" style={{ width: pct + '%' }} />
+      </div>
+      {seasonBar && <div className="handwriting" style={{ fontSize: 11, color: 'var(--accent)', fontStyle: 'italic', marginBottom: 6 }}>※ 家族間で振替して帳尻調整OK</div>}
+      <div>
+        {items.map(it => <ItemRow key={it.name} {...it} />)}
+      </div>
+    </div>
+  );
+}
+
+function WireframeA() {
+  const [tab, setTab] = React.useState('month');
+  const M = window.MOCK;
+
+  return (
+    <div className="view">
+      <div style={{ padding: '16px 18px 12px' }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{M.today.dateLabel}</div>
+        <div className="handwriting" style={{ fontSize: 28, fontWeight: 600, marginTop: 4 }}>残りいくら</div>
+        <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>サイクルで絞り込み ☕</div>
+      </div>
+
+      <div className="tab-row no-scrollbar">
+        {[['week','週'],['month','月'],['season','季節'],['year','年']].map(([k,l]) => (
+          <div key={k} className={'tab' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</div>
+        ))}
+      </div>
+
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="insight-box">
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+        </div>
+
+        {tab === 'week' && <GroupCard title="食費（今週 4/27–5/3）" total="¥51,730" sub={`/ 週予算 ¥87,000　あと${M.today.daysLeft}日`} pct={41} items={M.food} accentBg />}
+
+        {tab === 'month' && <>
+          <GroupCard title="🍔 食費（今月）" total="¥51,730" pct={50} items={M.food} />
+          <GroupCard title="🧹 日用品（今月）" total="¥9,770" pct={51} items={M.daily} />
+          <GroupCard title="🏥 健康・医療（今月）" total="¥1,800" pct={75} items={M.health} />
+          <GroupCard title="⛺️ 趣味・娯楽（今月）" total="¥29,700" pct={24} items={M.fun} />
+        </>}
+
+        {tab === 'season' && <GroupCard title="💄 被服（夏シーズン）" total="¥82,935" sub="/ ¥184,000 家族合計" pct={55} items={M.family} accentBg seasonBar />}
+
+        {tab === 'year' && <>
+          {M.yearGroups.map(g => (
+            <div key={g.name} className="sketch-box" style={{ padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</div>
+                <div className="big-num" style={{ fontSize: 16 }}>{g.rem}</div>
+              </div>
+              <div className="bar-track" style={{ height: 8, marginTop: 6 }}>
+                <div className="bar-fill" style={{ width: g.pct + '%' }} />
+              </div>
+            </div>
+          ))}
+          <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center', marginTop: 4 }}>—— 補足カテゴリは下に ——</div>
+        </>}
+      </div>
+    </div>
+  );
+}
+window.WireframeA = WireframeA;
+</script>
+
+<!-- ============================================================
+     Wireframe B — 品目ビュー
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function WireframeB() {
+  const ITEMS = [
+    { key: 'food',    label: '食費',      cycles: ['週','月','年'] },
+    { key: 'daily',   label: '日用品',    cycles: ['月','年'] },
+    { key: 'health',  label: '健康・医療',cycles: ['月','年'] },
+    { key: 'beauty',  label: '衣服・美容',cycles: ['夏','冬','年'] },
+    { key: 'fun',     label: 'ゆとり',    cycles: ['月','年'] },
+    { key: 'special', label: '特別費',    cycles: ['年'] },
+  ];
+  const [item, setItem] = React.useState('food');
+  const [cycleIdx, setCycleIdx] = React.useState(0);
+  const def = ITEMS.find(i => i.key === item);
+
+  const VIEWS = {
+    food:    { '週': { rem: '¥51,730', sub: 'あと4日 · 1日あたり ¥12,900 ペース', used: '¥35,270', budget: '¥87,000', pct: 41, list: window.MOCK.food },
+               '月': { rem: '¥80,500', sub: 'あと1日 · 月予算の進捗 35%',          used: '¥101,500', budget: '¥182,000', pct: 56, list: window.MOCK.food },
+               '年': { rem: '¥656,940', sub: '年内であと約 ¥82,000 / 月のペース',  used: '¥321,290', budget: '¥978,000', pct: 33, list: window.MOCK.food } },
+    daily:   { '月': { rem: '¥9,770',  sub: 'あと1日',                             used: '¥10,230', budget: '¥20,000', pct: 51, list: window.MOCK.daily },
+               '年': { rem: '¥161,650', sub: '年内であと約 ¥20,200 / 月',          used: '¥86,750', budget: '¥248,400', pct: 35, list: window.MOCK.daily } },
+    health:  { '月': { rem: '¥1,800', sub: 'シホは超過中', used: '¥6,200', budget: '¥8,000', pct: 78, list: window.MOCK.health },
+               '年': { rem: '¥77,350', sub: '検診・鍼灸込み', used: '¥18,650', budget: '¥96,000', pct: 19, list: window.MOCK.health } },
+    beauty:  { '夏': { rem: '¥82,935', sub: 'マイは振替で他から補填', used: '¥101,065', budget: '¥184,000', pct: 55, list: window.MOCK.family },
+               '冬': { rem: '¥152,000', sub: '冬シーズンはこれから', used: '¥0', budget: '¥152,000', pct: 0, list: window.MOCK.family },
+               '年': { rem: '¥633,210', sub: '美容含めた年合計', used: '¥190,790', budget: '¥824,000', pct: 23, list: window.MOCK.beauty } },
+    fun:     { '月': { rem: '¥29,700', sub: '余裕のある月', used: '¥9,800', budget: '¥39,500', pct: 24, list: window.MOCK.fun },
+               '年': { rem: '¥288,221', sub: 'ごちそう＋デート＋レジャー', used: '¥67,779', budget: '¥356,000', pct: 19, list: window.MOCK.fun } },
+    special: { '年': { rem: '¥257,147', sub: '家電が想定外に進行', used: '¥271,853', budget: '¥529,000', pct: 51, list: [{ name: '家電', rem: '−¥93,053', pct: 100, warn: true }, { name: '家具', rem: '¥340,000', pct: 0 }, { name: 'メンテ', rem: '¥10,200', pct: 59 }] } },
+  };
+
+  const cycleLabel = def.cycles[cycleIdx] || def.cycles[0];
+  const v = VIEWS[item][cycleLabel];
+
+  return (
+    <div className="view">
+      <div style={{ padding: '16px 18px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>残りいくら · 品目レンズ</div>
+        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>4月29日</div>
+      </div>
+
+      <div className="no-scrollbar" style={{ padding: '14px 18px 6px', display: 'flex', gap: 6, overflowX: 'auto' }}>
+        {ITEMS.map(i => (
+          <div key={i.key} className={'chip' + (item === i.key ? ' active' : '')}
+               onClick={() => { setItem(i.key); setCycleIdx(0); }}>{i.label}</div>
+        ))}
+      </div>
+
+      <div style={{ padding: '4px 18px 10px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>サイクル</div>
+        {def.cycles.map((c, i) => (
+          <div key={c} className={'chip' + (i === cycleIdx ? ' active' : '')}
+               style={{ fontSize: 11, padding: '3px 10px' }} onClick={() => setCycleIdx(i)}>{c}</div>
+        ))}
+      </div>
+
+      <div style={{ padding: '4px 22px 14px' }}>
+        <div className="handwriting" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+          {def.label} · {cycleLabel}　あと使えるのは
+        </div>
+        <div className="big-num" style={{ fontSize: 44, fontWeight: 500, lineHeight: 1.05, marginTop: 6 }}>{v.rem}</div>
+        <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6 }}>{v.sub}</div>
+      </div>
+
+      <div style={{ padding: '0 22px 4px' }}>
+        <div className="bar-track" style={{ height: 16 }}>
+          <div className="bar-fill diagonal" style={{ width: v.pct + '%' }} />
+        </div>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--ink-faint)' }}>
+          <span>使った {v.used}</span><span>予算 {v.budget}</span>
+        </div>
+      </div>
+
+      <hr className="section-rule" />
+
+      <div style={{ padding: '0 22px' }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>内訳</div>
+        {v.list.map(r => (
+          <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+            <div className="handwriting" style={{ width: 110, fontSize: 13 }}>{r.name}</div>
+            <div style={{ flex: 1, height: 7, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: Math.min(100, r.pct) + '%', height: '100%', background: r.warn ? 'var(--accent)' : 'var(--ink)' }} />
+            </div>
+            <div className="mono" style={{ width: 72, textAlign: 'right', fontSize: 12, color: r.warn ? 'var(--accent)' : 'var(--ink)' }}>{r.rem}</div>
+          </div>
+        ))}
+      </div>
+
+      <hr className="section-rule" />
+
+      <div style={{ padding: '0 22px 16px' }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>今月の一言</div>
+        <div className="insight-box">
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{window.MOCK.insight}
+        </div>
+      </div>
+    </div>
+  );
+}
+window.WireframeB = WireframeB;
+</script>
+
+<!-- ============================================================
+     Wireframe C — ノートビュー
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function Highlight({ title, value, sub }) {
+  return (
+    <div className="sketch-box" style={{ minWidth: 160, padding: 12, background: 'var(--paper-warm)', flexShrink: 0 }}>
+      <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)', minHeight: 28 }}>{title}</div>
+      <div className="big-num" style={{ fontSize: 18, marginTop: 4 }}>{value}</div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>{sub}</div>
+    </div>
+  );
+}
+
+function Section({ cycle, period, children }) {
+  return (
+    <div>
+      <div style={{ padding: '12px 22px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1.2px solid var(--ink)', marginTop: 8, background: 'var(--paper)' }}>
+        <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>▸ {cycle}</div>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{period}</div>
+      </div>
+      <div style={{ padding: '0 22px 4px' }}>{children}</div>
+    </div>
+  );
+}
+
+function NoteGroup({ name, total, pct, items }) {
+  return (
+    <div style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>{name}</div>
+        <div className="big-num" style={{ fontSize: 16 }}>{total}</div>
+      </div>
+      <div className="bar-track" style={{ height: 8, marginBottom: 4 }}>
+        <div className="bar-fill" style={{ width: pct + '%' }} />
+      </div>
+      {items.map(it => (
+        <div key={it.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '2px 0' }}>
+          <span className="handwriting" style={{ color: 'var(--ink-soft)' }}>　· {it.name}</span>
+          <span className="mono" style={{ color: it.warn ? 'var(--accent)' : 'var(--ink-soft)' }}>{it.rem}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NoteLine({ name, rem, pct, warn }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' }}>
+      <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{name}</div>
+      <div style={{ width: 50, height: 5, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: Math.min(100, pct) + '%', height: '100%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
+      </div>
+      <div className="mono" style={{ fontSize: 11, width: 72, textAlign: 'right', color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
+    </div>
+  );
+}
+
+function ClothingLedger() {
+  const M = window.MOCK;
+  return (
+    <div style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>被服　<span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>（家族で帳尻）</span></div>
+        <div className="big-num" style={{ fontSize: 16 }}>¥82,935</div>
+      </div>
+      <div style={{ height: 14, border: '1.2px solid var(--ink)', borderRadius: 3, display: 'flex', overflow: 'hidden', marginBottom: 8 }}>
+        <div style={{ width: '0%',  background: 'var(--ink)' }} />
+        <div style={{ width: '21%', background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
+        <div style={{ width: '6%',  background: 'var(--ink)' }} />
+        <div style={{ width: '15%', background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
+        <div style={{ width: '0%',  background: 'var(--ink)' }} />
+        <div style={{ width: '9%',  background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
+        <div style={{ width: '11%', background: 'var(--accent)' }} />
+        <div style={{ width: '0%',  background: 'var(--paper-warm)' }} />
+      </div>
+      {M.family.map(m => (
+        <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+          <div className="handwriting" style={{ width: 90, fontSize: 12 }}>　· 被服{m.name}</div>
+          <div style={{ flex: 1, height: 6, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ width: Math.min(100, m.pct) + '%', height: '100%', background: m.warn ? 'var(--accent)' : 'var(--ink)' }} />
+          </div>
+          <div className="mono" style={{ fontSize: 11, width: 72, textAlign: 'right', color: m.warn ? 'var(--accent)' : 'var(--ink)' }}>{m.rem}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WireframeC() {
+  const M = window.MOCK;
+  return (
+    <div className="view notebook-bg">
+      <div style={{ padding: '16px 22px 14px', borderBottom: '1.5px solid var(--ink)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div className="handwriting" style={{ fontSize: 24, fontWeight: 600 }}>残りいくら帳</div>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>2026.04</div>
+        </div>
+        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>今月のハイライト3つ ↓</div>
+      </div>
+
+      <div style={{ padding: '14px 18px 6px' }}>
+        <div className="insight-box">
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+        </div>
+      </div>
+
+      <div className="no-scrollbar" style={{ padding: '8px 18px 10px', display: 'flex', gap: 8, overflowX: 'auto' }}>
+        <Highlight title="ゆとり費は控えめな月" value="¥29,700" sub="残り（あと1日）" />
+        <Highlight title="食費は順調ペース" value="¥51,730" sub="今週分の残り" />
+        <Highlight title="年間予算に余裕" value="¥1,540,398" sub="まだ65%残" />
+      </div>
+
+      <Section cycle="毎週" period="今週（4/27〜5/3）">
+        {M.food.map(it => <NoteLine key={it.name} {...it} />)}
+      </Section>
+
+      <Section cycle="毎月" period="2026年4月">
+        <NoteGroup name="🍔 食費" total="¥80,500" pct={56} items={M.food} />
+        <NoteGroup name="🧹 日用品" total="¥9,770" pct={51} items={M.daily} />
+        <NoteGroup name="🏥 健康・医療" total="¥1,800" pct={75} items={M.health} />
+        <NoteGroup name="⛺️ 趣味・娯楽" total="¥29,700" pct={24} items={M.fun} />
+      </Section>
+
+      <Section cycle="シーズン" period="夏">
+        <ClothingLedger />
+      </Section>
+
+      <Section cycle="毎年" period="2026年">
+        {M.yearGroups.map(g => (
+          <div key={g.name} style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>{g.name}</div>
+              <div className="big-num" style={{ fontSize: 14 }}>{g.rem}</div>
+            </div>
+            <div className="bar-track" style={{ height: 7, marginTop: 5 }}>
+              <div className="bar-fill" style={{ width: g.pct + '%' }} />
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section cycle="補足" period="参考">
+        <div style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)', opacity: 0.65 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div className="handwriting" style={{ fontSize: 12 }}>習い事経費・会社飲み会・クリーニング ほか</div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>6件</div>
+          </div>
+        </div>
+      </Section>
+
+      <div className="handwriting" style={{ padding: '8px 22px 8px', fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic', textAlign: 'center' }}>
+        月末に夫婦で振り返り　·　次の意思決定のために
+      </div>
+    </div>
+  );
+}
+window.WireframeC = WireframeC;
+</script>
+
+<!-- ============================================================
+     Wireframe D — ダッシュボードビュー
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function MiniCard({ label, period, rem, pct, spark, warn }) {
+  const max = Math.max(1, ...spark);
+  return (
+    <div className="sketch-box" style={{ padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div className="handwriting" style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
+        <div className="mono" style={{ fontSize: 9, color: 'var(--ink-faint)' }}>{period}</div>
+      </div>
+      <div className="big-num" style={{ fontSize: 17, marginTop: 4, color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
+      <svg width="100%" height="22" viewBox="0 0 100 22" preserveAspectRatio="none" style={{ marginTop: 4 }}>
+        {spark.map((v, i) => (
+          <rect key={i} x={i * (100/spark.length) + 1} y={22 - (v / max) * 18}
+                width={Math.max(2, 100/spark.length - 2)} height={(v / max) * 18} fill="var(--ink)" />
+        ))}
+      </svg>
+      <div className="bar-track" style={{ height: 5, marginTop: 4 }}>
+        <div className="bar-fill" style={{ width: pct + '%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
+      </div>
+    </div>
+  );
+}
+
+function SeesawSide({ name, pct, rem, light, small }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="handwriting" style={{ fontSize: small ? 11 : 12 }}>{name}</div>
+      <div className="bar-track" style={{ height: 8, marginTop: 3 }}>
+        <div className={'bar-fill' + (light ? ' light' : '')} style={{ width: pct + '%' }} />
+      </div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-soft)', marginTop: 2 }}>残 {rem}</div>
+    </div>
+  );
+}
+
+function WireframeD() {
+  const [period, setPeriod] = React.useState('month');
+  const M = window.MOCK;
+
+  return (
+    <div className="view">
+      <div style={{ padding: '16px 18px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div className="handwriting" style={{ fontSize: 22, fontWeight: 600 }}>残りいくら</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>4月29日 · 月末まで1日</div>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[['week','週'],['month','月'],['season','季'],['year','年']].map(([k,l]) => (
+            <div key={k} className={'chip' + (period === k ? ' active' : '')} onClick={() => setPeriod(k)}>{l}</div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '0 18px 10px' }}>
+        <div className="insight-box">
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+        </div>
+      </div>
+
+      <div style={{ padding: '0 18px 10px' }}>
+        <div className="sketch-box" style={{ padding: 16, background: 'var(--paper-warm)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>月の重要カテゴリ合計</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>残45%</div>
+          </div>
+          <div className="big-num" style={{ fontSize: 32, marginTop: 4 }}>¥121,770</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 10 }}>/ ¥272,500</div>
+          <div className="bar-track" style={{ height: 12 }}>
+            <div className="bar-fill diagonal" style={{ width: '55%' }} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <MiniCard label="食費" period="今週" rem="¥51,730" pct={41} spark={[3,5,4,2,7,3,1]} />
+        <MiniCard label="日用品" period="今月" rem="¥9,770" pct={51} spark={[5,3,4,5,2,3]} />
+        <MiniCard label="ゆとり" period="今月" rem="¥29,700" pct={24} spark={[2,3,2,1,4,2]} />
+        <MiniCard label="被服" period="夏" rem="¥82,935" pct={55} warn spark={[0,0,3,0,0,9]} />
+      </div>
+
+      <div style={{ padding: '12px 18px 4px' }}>
+        <div className="sketch-box dashed" style={{ padding: 12 }}>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>連動カテゴリ ⇄</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <SeesawSide name="外食" pct={72} rem="¥7,200" />
+            <div className="accent" style={{ fontSize: 18, color: 'var(--accent)' }}>⇄</div>
+            <SeesawSide name="ごちそう" pct={23} rem="¥9,200" light />
+          </div>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <SeesawSide name="スペシャルデート" pct={17} rem="¥14,900" small light />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>(年枠)</div>
+            <div style={{ flex: 1 }}></div>
+          </div>
+          <div className="handwriting accent" style={{ fontSize: 11, color: 'var(--accent)', marginTop: 8, fontStyle: 'italic' }}>
+            外食が進んだ分、ごちそう＆デートは温存しておけそう
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '12px 18px 4px' }}>
+        <div className="sketch-box" style={{ padding: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>被服（家族・夏）</div>
+            <div className="big-num" style={{ fontSize: 14 }}>¥82,935</div>
+          </div>
+          {M.family.map(m => (
+            <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+              <div className="handwriting" style={{ width: 70, fontSize: 12 }}>{m.name}</div>
+              <div style={{ flex: 1, height: 7, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ width: Math.min(100, m.pct) + '%', height: '100%', background: m.warn ? 'var(--accent)' : 'var(--ink)' }} />
+              </div>
+              <div className="mono" style={{ fontSize: 10, width: 72, textAlign: 'right', color: m.warn ? 'var(--accent)' : 'var(--ink)' }}>{m.rem}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '12px 18px 4px' }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>年間 · 特別費＋交際＋健康</div>
+        <div className="bar-track" style={{ height: 12 }}>
+          <div className="bar-fill" style={{ width: '35%' }} />
+        </div>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10 }}>
+          <span>残 ¥814,357</span><span style={{ color: 'var(--ink-faint)' }}>あと8か月</span>
+        </div>
+      </div>
+
+      <div style={{ padding: '12px 18px 16px' }}>
+        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '8px 12px', border: '1px dashed var(--ink-faint)', borderRadius: 6, textAlign: 'center', cursor: 'pointer' }}>
+          補足カテゴリ（6件）を表示 ›
+        </div>
+      </div>
+    </div>
+  );
+}
+window.WireframeD = WireframeD;
+</script>
+
+<!-- ============================================================
+     AppShell — 4タブ切替
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function AppShell() {
+  const [view, setView] = React.useState('cycle');
+  const VIEWS = [
+    { key: 'cycle',     label: 'サイクル', comp: window.WireframeA, icon: '🗓' },
+    { key: 'item',      label: '品目',     comp: window.WireframeB, icon: '🔍' },
+    { key: 'note',      label: 'ノート',   comp: window.WireframeC, icon: '📓' },
+    { key: 'dashboard', label: 'ダッシュ', comp: window.WireframeD, icon: '▦' },
+  ];
+  const Active = VIEWS.find(v => v.key === view).comp;
+
+  // ビュー切替時に上にスクロール
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }, [view]);
+
+  return (
+    <div className="app-root">
+      <Active />
+      <div className="tabbar" role="tablist">
+        {VIEWS.map(v => (
+          <div key={v.key}
+               role="tab"
+               aria-selected={view === v.key}
+               className={'tabbar-item' + (view === v.key ? ' active' : '')}
+               onClick={() => setView(v.key)}>
+            <div className="tabbar-icon">{v.icon}</div>
+            <div className="tabbar-label">{v.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AppShell />);
+</script>
+</body>
+</html>
