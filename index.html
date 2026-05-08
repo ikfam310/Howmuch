@@ -409,7 +409,8 @@ window.HM.loadSheet = loadSheet;
      セレクタ（ビュー用に整形）
      ============================================================ -->
 <script type="text/babel" data-presets="react">
-const { fmtYen, pct, todayInfo } = window.HM;
+// fmtYen / pct / todayInfo は前のブロックで関数宣言済みのグローバル名を直接参照する
+// （ここで const 再宣言すると "Identifier already declared" エラーになる）
 
 // 費目ごとにアイテムをグループ化
 function groupByCategory(rows, predicate) {
