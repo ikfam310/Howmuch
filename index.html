@@ -9,20 +9,15 @@
 <meta name="format-detection" content="telephone=no" />
 <title>残りいくら</title>
 
-<!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Yomogi&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-<!-- React + Babel (UMD, GitHub Pages friendly) -->
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
 
 <style>
-/* ============================================================
-   Sketchy wireframe — Navy palette (固定)
-   ============================================================ */
 :root {
   --ink: #2a3447;
   --ink-soft: #5d6577;
@@ -53,8 +48,6 @@ body {
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: contain;
 }
-
-/* iOS overscroll bounce背景の継続 */
 body::before {
   content: ""; position: fixed; inset: 0;
   background: var(--paper); z-index: -1;
@@ -62,7 +55,6 @@ body::before {
 
 #root { width: 100%; min-height: 100vh; }
 
-/* App container — フルスクリーン */
 .app-root {
   position: relative;
   width: 100%;
@@ -72,7 +64,6 @@ body::before {
   padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
 }
 
-/* スクロール領域 */
 .view {
   width: 100%;
   max-width: 480px;
@@ -80,9 +71,6 @@ body::before {
   background: var(--paper);
 }
 
-/* ============================================================
-   原Stylesheet移植
-   ============================================================ */
 .sketch-box { border: 1.5px solid var(--ink); border-radius: 6px; background: var(--paper); position: relative; }
 .sketch-box.dashed { border-style: dashed; border-width: 1.2px; }
 
@@ -132,11 +120,9 @@ body::before {
 }
 .insight-box .accent { color: var(--accent); font-weight: 600; }
 
-/* スクロールバー隠し（横スクロール用） */
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* 下部タブバー — fixed */
 .tabbar {
   position: fixed;
   left: 50%;
@@ -163,112 +149,561 @@ body::before {
 .tabbar-item.active { background: var(--ink); color: var(--paper); font-weight: 600; }
 .tabbar-icon { font-size: 16px; line-height: 1; }
 .tabbar-label { margin-top: 3px; }
+
+/* Loading / Error */
+.fullscreen-state {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--paper); padding: 24px;
+  z-index: 200;
+}
+.state-card {
+  max-width: 360px; width: 100%;
+  text-align: center;
+  font-family: var(--font-hand-jp);
+  color: var(--ink);
+}
+.state-card .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.state-card .body { font-size: 13px; color: var(--ink-soft); line-height: 1.7; }
+.state-card .url {
+  display: inline-block; margin-top: 14px;
+  padding: 6px 10px; border: 1px dashed var(--ink-faint); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft);
+  word-break: break-all;
+}
+.spinner {
+  width: 28px; height: 28px;
+  border: 2.5px solid var(--ink-faint);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.retry-btn {
+  margin-top: 16px;
+  padding: 8px 18px;
+  font-family: var(--font-hand-jp); font-size: 13px;
+  border: 1.2px solid var(--ink); background: var(--paper);
+  color: var(--ink); border-radius: 999px; cursor: pointer;
+}
+.retry-btn:active { background: var(--ink); color: var(--paper); }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <!-- ============================================================
-     データ (mock.jsx)
+     データソース設定
+     ============================================================ -->
+<script>
+window.SHEET_CONFIG = {
+  spreadsheetId: '1-AR9jIiKT0UTQJndT-PYPgzZqwE-Aq1PGixOINHOxwM',
+  sheetName: '残り予算',
+};
+window.CSV_URL =
+  'https://docs.google.com/spreadsheets/d/' +
+  window.SHEET_CONFIG.spreadsheetId +
+  '/gviz/tq?tqx=out:csv&sheet=' +
+  encodeURIComponent(window.SHEET_CONFIG.sheetName);
+</script>
+
+<!-- ============================================================
+     CSVパーサ + 数値・真偽・日付ユーティリティ
      ============================================================ -->
 <script type="text/babel" data-presets="react">
-const MOCK = {
-  today: { dateLabel: '2026.04.29 水', daysLeft: 4, monthDaysLeft: 1 },
-  insight: '外食が進んでる月。ごちそうは控えめにすると年間で帳尻が合いそう',
+function parseCSV(text) {
+  // BOM除去
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++;
+    } else {
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); field = ''; rows.push(row); row = []; i++; continue; }
+      field += c; i++;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
 
-  food: [
-    { name: 'スーパー',     rem: '¥41,800',  pct: 38, period: '今週' },
-    { name: 'コンビニ',     rem: '¥330',      pct: 67, period: '今週' },
-    { name: '外食',         rem: '¥7,200',    pct: 72, period: '今月', warn: true },
-    { name: '健康食品',     rem: '¥2,400',    pct: 22, period: '今週' },
-  ],
-  trio: [
-    { name: '外食',           rem: '¥7,200',  pct: 72, warn: true },
-    { name: 'ごちそう',       rem: '¥9,200',  pct: 23 },
-    { name: 'スペシャルデート', rem: '¥14,900', pct: 17 },
-  ],
-  daily: [
-    { name: '日用品',       rem: '¥6,200',  pct: 52 },
-    { name: '日用品＿子供', rem: '¥1,800',  pct: 40 },
-    { name: '学校教材費',   rem: '¥770',    pct: 55 },
-    { name: '交通費',       rem: '¥1,000',  pct: 67 },
-  ],
-  health: [
-    { name: '医療・薬タカフミ', rem: '¥1,200',  pct: 60 },
-    { name: '医療・薬シホ',     rem: '−¥1,200', pct: 100, warn: true },
-    { name: '鍼灸タカフミ',     rem: '¥1,000',  pct: 0 },
-    { name: '鍼灸シホ',         rem: '¥800',    pct: 20 },
-  ],
-  beauty: [
-    { name: 'ヘアサロン',     rem: '¥0',      pct: 100, warn: true },
-    { name: '被服タカフミ',   rem: '¥40,000', pct: 0,   season: '夏' },
-    { name: '被服シホ',       rem: '¥27,900', pct: 30,  season: '夏' },
-    { name: '被服エイタ',     rem: '¥16,000', pct: 0,   season: '夏' },
-    { name: '被服マイ',       rem: '−¥965',   pct: 106, season: '夏', warn: true },
-    { name: '化粧品',         rem: '¥18,200', pct: 35 },
-  ],
-  fun: [
-    { name: 'ごちそう',         rem: '¥9,200',   pct: 23 },
-    { name: 'スペシャルデート', rem: '¥14,900',  pct: 17 },
-    { name: '子供ゆとり費',     rem: '¥3,500',   pct: 30 },
-    { name: 'レジャー',         rem: '¥2,100',   pct: 30 },
-  ],
-  family: [
-    { name: 'タカフミ', rem: '¥40,000',  pct: 0 },
-    { name: 'シホ',     rem: '¥27,900',  pct: 30 },
-    { name: 'エイタ',   rem: '¥16,000',  pct: 0 },
-    { name: 'マイ',     rem: '−¥965',    pct: 106, warn: true },
-  ],
-  yearGroups: [
-    { name: '☕️ 交際費',     rem: '¥538,560', pct: 13 },
-    { name: '🏥 健康・医療', rem: '¥18,650',  pct: 63 },
-    { name: '❗️ 特別な支出', rem: '¥257,147', pct: 50 },
-  ],
-};
-window.MOCK = MOCK;
+function rowsToObjects(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map(h => String(h).trim());
+  return rows.slice(1)
+    .filter(r => r.some(v => String(v).trim() !== ''))
+    .map(r => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = r[i] != null ? r[i] : ''; });
+      return obj;
+    });
+}
+
+function parseNum(s) {
+  if (s == null) return 0;
+  s = String(s).trim();
+  if (!s) return 0;
+  let neg = false;
+  // 括弧で負数表現
+  if ((s.startsWith('(') || s.startsWith('（')) &&
+      (s.endsWith(')') || s.endsWith('）'))) {
+    neg = true; s = s.slice(1, -1);
+  }
+  // 通貨記号・カンマ・空白を除去
+  s = s.replace(/[¥￥,円\s]/g, '');
+  // 先頭マイナス（半角・全角・ダッシュ各種）
+  if (/^[−–—\-‐]/.test(s)) { neg = !neg; s = s.slice(1); }
+  if (s === '' || s === '-') return 0;
+  const n = parseFloat(s);
+  if (Number.isNaN(n)) return 0;
+  return neg ? -n : n;
+}
+
+function parseBool(s) {
+  if (s == null) return false;
+  const v = String(s).trim().toLowerCase();
+  if (!v) return false;
+  if (['0', 'false', 'no', 'n', '×', 'x', 'ｘ', '-', '−', 'なし'].includes(v)) return false;
+  return true;
+}
+
+function fmtYen(n) {
+  if (n == null || Number.isNaN(n)) return '—';
+  const r = Math.round(n);
+  const abs = Math.abs(r).toLocaleString('en-US');
+  return (r < 0 ? '−¥' : '¥') + abs;
+}
+
+function pct(used, total) {
+  if (!total || total <= 0) return 0;
+  const p = Math.round((used / total) * 100);
+  return Math.max(0, Math.min(999, p));
+}
+
+// 月曜始まりで、今月にかかる週の数（部分週も1週とカウント）
+function weeksInMonth(year, month1to12) {
+  const first = new Date(year, month1to12 - 1, 1);
+  const last = new Date(year, month1to12, 0);
+  const firstDow = (first.getDay() + 6) % 7; // 0=Mon
+  const startMon = new Date(first.getFullYear(), first.getMonth(), first.getDate() - firstDow);
+  let weeks = 0;
+  for (let d = new Date(startMon); d <= last; d.setDate(d.getDate() + 7)) weeks++;
+  return weeks || 1;
+}
+
+function todayInfo() {
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = t.getMonth() + 1;
+  const d = t.getDate();
+  const dow = ['日','月','火','水','木','金','土'][t.getDay()];
+  return {
+    date: t,
+    year: y, month: m, day: d,
+    label: `${y}.${String(m).padStart(2,'0')}.${String(d).padStart(2,'0')} ${dow}`,
+    monthLabel: `${y}年${m}月`,
+    daysInMonth: new Date(y, m, 0).getDate(),
+    monthDaysLeft: Math.max(0, new Date(y, m, 0).getDate() - d),
+    weeksInMonth: weeksInMonth(y, m),
+  };
+}
+
+window.HM = window.HM || {};
+Object.assign(window.HM, {
+  parseCSV, rowsToObjects, parseNum, parseBool,
+  fmtYen, pct, weeksInMonth, todayInfo,
+});
+</script>
+
+<!-- ============================================================
+     データロード + 正規化
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+const REQUIRED_HEADERS = [
+  'budget_key', '費目', '詳細',
+  '週', '月', '年', 'シーズン夏', 'シーズン冬',
+  '年予算', '月予算', 'シーズン夏予算', 'シーズン冬予算',
+  '年実績', 'シーズン夏実績', 'シーズン冬実績',
+  '年残り', 'シーズン夏残り', 'シーズン冬残り',
+];
+const MONTH_ACTUAL_HEADERS = Array.from({length: 12}, (_, i) => `${i+1}月実績`);
+
+function normalizeRow(o) {
+  const { parseNum, parseBool } = window.HM;
+  const monthly = MONTH_ACTUAL_HEADERS.map(h => parseNum(o[h]));
+  return {
+    key: String(o['budget_key'] || '').trim(),
+    category: String(o['費目'] || '').trim(),
+    name: String(o['詳細'] || '').trim() || String(o['費目'] || '').trim(),
+    cycles: {
+      week:   parseBool(o['週']),
+      month:  parseBool(o['月']),
+      year:   parseBool(o['年']),
+      summer: parseBool(o['シーズン夏']),
+      winter: parseBool(o['シーズン冬']),
+    },
+    budget: {
+      year:   parseNum(o['年予算']),
+      month:  parseNum(o['月予算']),
+      summer: parseNum(o['シーズン夏予算']),
+      winter: parseNum(o['シーズン冬予算']),
+    },
+    actual: {
+      year:   parseNum(o['年実績']),
+      summer: parseNum(o['シーズン夏実績']),
+      winter: parseNum(o['シーズン冬実績']),
+    },
+    remain: {
+      year:   parseNum(o['年残り']),
+      summer: parseNum(o['シーズン夏残り']),
+      winter: parseNum(o['シーズン冬残り']),
+    },
+    // 1月実績〜12月実績（0始まり）
+    monthly,
+    // 週次実績は将来用にプレースホルダー（現在は読み込み列なし）
+    weekly: null,
+    raw: o,
+  };
+}
+
+async function loadSheet() {
+  const url = window.CSV_URL + '&_=' + Date.now(); // キャッシュ回避
+  const res = await fetch(url, { credentials: 'omit' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  if (!text || /<html/i.test(text.slice(0, 200))) {
+    throw new Error('CSVではなくHTMLが返されました（共有設定をご確認ください）');
+  }
+  const grid = window.HM.parseCSV(text);
+  const objects = window.HM.rowsToObjects(grid);
+  if (!objects.length) throw new Error('行がありません');
+  const headers = grid[0].map(h => String(h).trim());
+  const missing = REQUIRED_HEADERS.filter(h => !headers.includes(h));
+  if (missing.length > 4) {
+    throw new Error('期待するヘッダーが見つかりません: ' + missing.slice(0, 4).join(' / ') + ' …');
+  }
+  const rows = objects
+    .map(normalizeRow)
+    .filter(r => r.category && r.name); // 空行除外
+  return { rows, headers };
+}
+
+window.HM.loadSheet = loadSheet;
+</script>
+
+<!-- ============================================================
+     セレクタ（ビュー用に整形）
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+const { fmtYen, pct, todayInfo } = window.HM;
+
+// 費目ごとにアイテムをグループ化
+function groupByCategory(rows, predicate) {
+  const map = new Map();
+  for (const r of rows) {
+    if (predicate && !predicate(r)) continue;
+    if (!map.has(r.category)) map.set(r.category, []);
+    map.get(r.category).push(r);
+  }
+  return Array.from(map.entries()).map(([category, items]) => ({ category, items }));
+}
+
+// 月ビュー：費目ごとに 月予算 / 今月実績 / 月の残り
+function buildMonthGroups(rows) {
+  const t = todayInfo();
+  const mIdx = t.month - 1;
+  const groups = groupByCategory(rows, r => r.cycles.month);
+  return groups.map(({ category, items }) => {
+    let budget = 0, actual = 0;
+    const itemRows = items.map(it => {
+      const ib = it.budget.month;
+      const ia = it.monthly[mIdx] || 0;
+      const ir = ib - ia;
+      budget += ib; actual += ia;
+      return {
+        name: it.name,
+        budget: ib,
+        actual: ia,
+        remain: ir,
+        rem: fmtYen(ir),
+        pct: pct(ia, ib),
+        warn: ib > 0 && ia > ib,
+      };
+    });
+    const remain = budget - actual;
+    return {
+      category, items: itemRows,
+      budget, actual, remain,
+      total: fmtYen(remain),
+      pct: pct(actual, budget),
+      warn: budget > 0 && actual > budget,
+    };
+  });
+}
+
+// 週ビュー：費目ごとに今週の目安予算（月予算 ÷ 今月の週数）
+function buildWeekGroups(rows) {
+  const t = todayInfo();
+  const w = t.weeksInMonth;
+  const groups = groupByCategory(rows, r => r.cycles.week);
+  return groups.map(({ category, items }) => {
+    let weekly = 0;
+    const itemRows = items.map(it => {
+      const target = it.budget.month / w;
+      weekly += target;
+      // 将来：週次実績が入ったら it.weekly を使う
+      const a = it.weekly != null ? it.weekly : null;
+      return {
+        name: it.name,
+        target,
+        targetLabel: fmtYen(target),
+        actual: a,
+        actualLabel: a != null ? fmtYen(a) : null,
+        // 将来用 pct
+        pct: a != null && it.budget.month > 0 ? pct(a, target) : null,
+      };
+    });
+    return {
+      category, items: itemRows,
+      weekly, weeklyLabel: fmtYen(weekly),
+    };
+  });
+}
+
+// 年ビュー：費目ごとに 年予算/年実績/年残り
+function buildYearGroups(rows) {
+  const groups = groupByCategory(rows, r => r.cycles.year);
+  return groups.map(({ category, items }) => {
+    let budget = 0, actual = 0, remain = 0;
+    items.forEach(it => { budget += it.budget.year; actual += it.actual.year; remain += it.remain.year; });
+    return {
+      category, items,
+      budget, actual,
+      remain: remain || (budget - actual),
+      total: fmtYen(remain || (budget - actual)),
+      pct: pct(actual, budget),
+    };
+  });
+}
+
+// シーズン（夏/冬）：cycles.summer/winter で絞って合算
+function buildSeasonGroups(rows, season /* 'summer' | 'winter' */) {
+  const groups = groupByCategory(rows, r => r.cycles[season]);
+  return groups.map(({ category, items }) => {
+    let budget = 0, actual = 0, remain = 0;
+    items.forEach(it => {
+      budget += it.budget[season];
+      actual += it.actual[season];
+      remain += it.remain[season];
+    });
+    return {
+      category, items,
+      budget, actual,
+      remain: remain || (budget - actual),
+      total: fmtYen(remain || (budget - actual)),
+      pct: pct(actual, budget),
+    };
+  });
+}
+
+// 季節を今日から自動判定（夏=4-9月, 冬=10-3月）
+function currentSeason() {
+  const m = todayInfo().month;
+  return (m >= 4 && m <= 9) ? 'summer' : 'winter';
+}
+
+// 月の進捗インサイト文を生成
+function buildInsight(monthGroups) {
+  const t = todayInfo();
+  let totalBudget = 0, totalActual = 0;
+  monthGroups.forEach(g => { totalBudget += g.budget; totalActual += g.actual; });
+  if (totalBudget <= 0) {
+    return `${t.monthLabel}のデータを読み込みました（あと${t.monthDaysLeft}日）`;
+  }
+  const p = pct(totalActual, totalBudget);
+  const remain = totalBudget - totalActual;
+  return `${t.monthLabel}の進捗 ${p}% · 残り ${fmtYen(remain)} / あと${t.monthDaysLeft}日`;
+}
+
+// 品目レンズ用：費目から各サイクルの集計を返す
+function buildItemLens(rows, category) {
+  const t = todayInfo();
+  const mIdx = t.month - 1;
+  const items = rows.filter(r => r.category === category);
+
+  const cycles = [];
+  if (items.some(r => r.cycles.week)) {
+    const list = items.filter(r => r.cycles.week);
+    let weekly = 0;
+    list.forEach(it => weekly += it.budget.month / t.weeksInMonth);
+    cycles.push({
+      key: 'week', label: '週',
+      rem: fmtYen(weekly), used: '—', budget: fmtYen(list.reduce((s, it) => s + it.budget.month, 0)),
+      sub: `今週の目安（月予算 ÷ ${t.weeksInMonth}週）`,
+      pctVal: 0,
+      list: list.map(it => ({
+        name: it.name,
+        rem: fmtYen(it.budget.month / t.weeksInMonth),
+        pct: 0, warn: false,
+      })),
+      hideUsed: true,
+    });
+  }
+  if (items.some(r => r.cycles.month)) {
+    const list = items.filter(r => r.cycles.month);
+    let b = 0, a = 0;
+    list.forEach(it => { b += it.budget.month; a += it.monthly[mIdx]; });
+    cycles.push({
+      key: 'month', label: '月',
+      rem: fmtYen(b - a), used: fmtYen(a), budget: fmtYen(b),
+      sub: `${t.monthLabel} · あと${t.monthDaysLeft}日`,
+      pctVal: pct(a, b),
+      list: list.map(it => ({
+        name: it.name,
+        rem: fmtYen(it.budget.month - it.monthly[mIdx]),
+        pct: pct(it.monthly[mIdx], it.budget.month),
+        warn: it.budget.month > 0 && it.monthly[mIdx] > it.budget.month,
+      })),
+    });
+  }
+  ['summer', 'winter'].forEach(s => {
+    if (items.some(r => r.cycles[s])) {
+      const list = items.filter(r => r.cycles[s]);
+      let b = 0, a = 0;
+      list.forEach(it => { b += it.budget[s]; a += it.actual[s]; });
+      cycles.push({
+        key: s, label: s === 'summer' ? '夏' : '冬',
+        rem: fmtYen(b - a), used: fmtYen(a), budget: fmtYen(b),
+        sub: `${s === 'summer' ? '夏' : '冬'}シーズン`,
+        pctVal: pct(a, b),
+        list: list.map(it => ({
+          name: it.name,
+          rem: fmtYen(it.budget[s] - it.actual[s]),
+          pct: pct(it.actual[s], it.budget[s]),
+          warn: it.budget[s] > 0 && it.actual[s] > it.budget[s],
+        })),
+      });
+    }
+  });
+  if (items.some(r => r.cycles.year)) {
+    const list = items.filter(r => r.cycles.year);
+    let b = 0, a = 0;
+    list.forEach(it => { b += it.budget.year; a += it.actual.year; });
+    cycles.push({
+      key: 'year', label: '年',
+      rem: fmtYen(b - a), used: fmtYen(a), budget: fmtYen(b),
+      sub: `${t.year}年`,
+      pctVal: pct(a, b),
+      list: list.map(it => ({
+        name: it.name,
+        rem: fmtYen(it.budget.year - it.actual.year),
+        pct: pct(it.actual.year, it.budget.year),
+        warn: it.budget.year > 0 && it.actual.year > it.budget.year,
+      })),
+    });
+  }
+  return { category, cycles };
+}
+
+Object.assign(window.HM, {
+  buildMonthGroups, buildWeekGroups, buildYearGroups, buildSeasonGroups,
+  currentSeason, buildInsight, buildItemLens, groupByCategory,
+});
+</script>
+
+<!-- ============================================================
+     共通サブコンポーネント
+     ============================================================ -->
+<script type="text/babel" data-presets="react">
+function Bar({ pct, height = 10, warn, diagonal, light }) {
+  const cls = ['bar-fill'];
+  if (diagonal) cls.push('diagonal');
+  if (light) cls.push('light');
+  return (
+    <div className="bar-track" style={{ height }}>
+      <div className={cls.join(' ')}
+           style={{ width: Math.min(100, Math.max(0, pct || 0)) + '%', background: warn ? 'var(--accent)' : undefined }} />
+    </div>
+  );
+}
+
+function ItemRow({ name, rem, pct, warn }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px dashed var(--line)' }}>
+      <div className="handwriting" style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+      <div style={{ width: 60, height: 5, background: 'var(--paper-warm)', border: '0.8px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ width: Math.min(100, pct || 0) + '%', height: '100%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
+      </div>
+      <div className="mono" style={{ fontSize: 12, width: 78, textAlign: 'right', color: warn ? 'var(--accent)' : 'var(--ink)', flexShrink: 0 }}>{rem}</div>
+    </div>
+  );
+}
+
+function GroupCard({ title, total, sub, pct, items, accentBg, hidePctBar, footnote }) {
+  return (
+    <div className="sketch-box" style={{ padding: 14, background: accentBg ? 'var(--paper-warm)' : 'var(--paper)' }}>
+      <div className="handwriting" style={{ fontSize: 15, fontWeight: 600 }}>{title}</div>
+      <div className="big-num" style={{ fontSize: accentBg ? 28 : 22, marginTop: 4 }}>{total}</div>
+      {sub && <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{sub}</div>}
+      {!hidePctBar && (
+        <div className="bar-track" style={{ height: accentBg ? 14 : 10, margin: '8px 0' }}>
+          <div className="bar-fill diagonal" style={{ width: Math.min(100, pct || 0) + '%' }} />
+        </div>
+      )}
+      {footnote && <div className="handwriting" style={{ fontSize: 11, color: 'var(--accent)', fontStyle: 'italic', margin: '4px 0' }}>{footnote}</div>}
+      <div>{items}</div>
+    </div>
+  );
+}
+
+function CategoryEmoji({ category }) {
+  const m = {
+    '食費': '🍔', '日用品': '🧹', '健康・医療': '🏥', '健康': '🏥',
+    '衣服・美容': '💄', '被服': '👕', '美容': '💄', 'ゆとり': '⛺️',
+    '趣味・娯楽': '⛺️', '特別費': '❗️', '交際費': '☕️', '教育': '📚',
+    '住居': '🏠', '通信': '📡', '光熱': '💡', '保険': '🛡', '交通': '🚃',
+  };
+  return <span style={{ marginRight: 4 }}>{m[category] || '・'}</span>;
+}
+
+window.HMC = { Bar, ItemRow, GroupCard, CategoryEmoji };
 </script>
 
 <!-- ============================================================
      Wireframe A — サイクルビュー
      ============================================================ -->
 <script type="text/babel" data-presets="react">
-function ItemRow({ name, rem, pct, warn }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px dashed var(--line)' }}>
-      <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{name}</div>
-      <div style={{ width: 60, height: 5, background: 'var(--paper-warm)', border: '0.8px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: Math.min(100, pct) + '%', height: '100%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
-      </div>
-      <div className="mono" style={{ fontSize: 12, width: 72, textAlign: 'right', color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
-    </div>
-  );
-}
-
-function GroupCard({ title, total, sub, pct, items, accentBg, seasonBar }) {
-  return (
-    <div className="sketch-box" style={{ padding: 14, background: accentBg ? 'var(--paper-warm)' : 'var(--paper)' }}>
-      <div className="handwriting" style={{ fontSize: 15, fontWeight: 600 }}>{title}</div>
-      <div className="big-num" style={{ fontSize: accentBg ? 28 : 22, marginTop: 4 }}>{total}</div>
-      {sub && <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{sub}</div>}
-      <div className="bar-track" style={{ height: accentBg ? 14 : 10, margin: '8px 0' }}>
-        <div className="bar-fill diagonal" style={{ width: pct + '%' }} />
-      </div>
-      {seasonBar && <div className="handwriting" style={{ fontSize: 11, color: 'var(--accent)', fontStyle: 'italic', marginBottom: 6 }}>※ 家族間で振替して帳尻調整OK</div>}
-      <div>
-        {items.map(it => <ItemRow key={it.name} {...it} />)}
-      </div>
-    </div>
-  );
-}
-
-function WireframeA() {
+function WireframeA({ rows }) {
   const [tab, setTab] = React.useState('month');
-  const M = window.MOCK;
+  const t = window.HM.todayInfo();
+  const HM = window.HM;
+  const { ItemRow, GroupCard, CategoryEmoji } = window.HMC;
+
+  const monthGroups = React.useMemo(() => HM.buildMonthGroups(rows), [rows]);
+  const weekGroups  = React.useMemo(() => HM.buildWeekGroups(rows),  [rows]);
+  const yearGroups  = React.useMemo(() => HM.buildYearGroups(rows),  [rows]);
+  const season = HM.currentSeason();
+  const seasonGroups = React.useMemo(() => HM.buildSeasonGroups(rows, season), [rows, season]);
+  const insight = HM.buildInsight(monthGroups);
 
   return (
     <div className="view">
       <div style={{ padding: '16px 18px 12px' }}>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{M.today.dateLabel}</div>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{t.label}</div>
         <div className="handwriting" style={{ fontSize: 28, fontWeight: 600, marginTop: 4 }}>残りいくら</div>
         <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>サイクルで絞り込み ☕</div>
       </div>
@@ -281,115 +716,191 @@ function WireframeA() {
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="insight-box">
-          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{insight}
         </div>
 
-        {tab === 'week' && <GroupCard title="食費（今週 4/27–5/3）" total="¥51,730" sub={`/ 週予算 ¥87,000　あと${M.today.daysLeft}日`} pct={41} items={M.food} accentBg />}
+        {tab === 'week' && (
+          weekGroups.length === 0 ? <EmptyMsg label="週サイクルの品目がありません" /> :
+          weekGroups.map(g => (
+            <GroupCard
+              key={g.category}
+              title={<><CategoryEmoji category={g.category} />{g.category}（今週の目安）</>}
+              total={g.weeklyLabel}
+              sub={`月予算 ÷ ${t.weeksInMonth}週で算出`}
+              pct={0}
+              hidePctBar
+              accentBg
+              items={g.items.map(it => (
+                <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px dashed var(--line)' }}>
+                  <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{it.name}</div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>目安</div>
+                  <div className="mono" style={{ fontSize: 12, width: 78, textAlign: 'right' }}>{it.targetLabel}</div>
+                </div>
+              ))}
+              footnote="週次実績は将来追加予定"
+            />
+          ))
+        )}
 
-        {tab === 'month' && <>
-          <GroupCard title="🍔 食費（今月）" total="¥51,730" pct={50} items={M.food} />
-          <GroupCard title="🧹 日用品（今月）" total="¥9,770" pct={51} items={M.daily} />
-          <GroupCard title="🏥 健康・医療（今月）" total="¥1,800" pct={75} items={M.health} />
-          <GroupCard title="⛺️ 趣味・娯楽（今月）" total="¥29,700" pct={24} items={M.fun} />
-        </>}
+        {tab === 'month' && (
+          monthGroups.length === 0 ? <EmptyMsg label="月サイクルの品目がありません" /> :
+          monthGroups.map(g => (
+            <GroupCard
+              key={g.category}
+              title={<><CategoryEmoji category={g.category} />{g.category}（{t.monthLabel}）</>}
+              total={g.total}
+              sub={`実績 ${HM.fmtYen(g.actual)} / 予算 ${HM.fmtYen(g.budget)}`}
+              pct={g.pct}
+              items={g.items.map(it => <ItemRow key={it.name} {...it} />)}
+            />
+          ))
+        )}
 
-        {tab === 'season' && <GroupCard title="💄 被服（夏シーズン）" total="¥82,935" sub="/ ¥184,000 家族合計" pct={55} items={M.family} accentBg seasonBar />}
+        {tab === 'season' && (
+          seasonGroups.length === 0 ? <EmptyMsg label={`${season === 'summer' ? '夏' : '冬'}シーズンの品目がありません`} /> :
+          seasonGroups.map(g => (
+            <GroupCard
+              key={g.category}
+              title={<><CategoryEmoji category={g.category} />{g.category}（{season === 'summer' ? '夏' : '冬'}シーズン）</>}
+              total={g.total}
+              sub={`実績 ${HM.fmtYen(g.actual)} / 予算 ${HM.fmtYen(g.budget)}`}
+              pct={g.pct}
+              accentBg
+              items={g.items.map(it => (
+                <ItemRow
+                  key={it.name}
+                  name={it.name}
+                  rem={HM.fmtYen(it.budget[season] - it.actual[season])}
+                  pct={HM.pct(it.actual[season], it.budget[season])}
+                  warn={it.budget[season] > 0 && it.actual[season] > it.budget[season]}
+                />
+              ))}
+            />
+          ))
+        )}
 
-        {tab === 'year' && <>
-          {M.yearGroups.map(g => (
-            <div key={g.name} className="sketch-box" style={{ padding: 12 }}>
+        {tab === 'year' && (
+          yearGroups.length === 0 ? <EmptyMsg label="年サイクルの品目がありません" /> :
+          yearGroups.map(g => (
+            <div key={g.category} className="sketch-box" style={{ padding: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</div>
-                <div className="big-num" style={{ fontSize: 16 }}>{g.rem}</div>
+                <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>
+                  <CategoryEmoji category={g.category} />{g.category}
+                </div>
+                <div className="big-num" style={{ fontSize: 16 }}>{g.total}</div>
+              </div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', marginTop: 2 }}>
+                実績 {HM.fmtYen(g.actual)} / 予算 {HM.fmtYen(g.budget)}
               </div>
               <div className="bar-track" style={{ height: 8, marginTop: 6 }}>
-                <div className="bar-fill" style={{ width: g.pct + '%' }} />
+                <div className="bar-fill" style={{ width: Math.min(100, g.pct) + '%' }} />
               </div>
             </div>
-          ))}
-          <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center', marginTop: 4 }}>—— 補足カテゴリは下に ——</div>
-        </>}
+          ))
+        )}
       </div>
     </div>
   );
 }
+
+function EmptyMsg({ label }) {
+  return (
+    <div className="sketch-box dashed" style={{ padding: 14, textAlign: 'center' }}>
+      <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{label}</div>
+    </div>
+  );
+}
+
 window.WireframeA = WireframeA;
+window.EmptyMsg = EmptyMsg;
 </script>
 
 <!-- ============================================================
      Wireframe B — 品目ビュー
      ============================================================ -->
 <script type="text/babel" data-presets="react">
-function WireframeB() {
-  const ITEMS = [
-    { key: 'food',    label: '食費',      cycles: ['週','月','年'] },
-    { key: 'daily',   label: '日用品',    cycles: ['月','年'] },
-    { key: 'health',  label: '健康・医療',cycles: ['月','年'] },
-    { key: 'beauty',  label: '衣服・美容',cycles: ['夏','冬','年'] },
-    { key: 'fun',     label: 'ゆとり',    cycles: ['月','年'] },
-    { key: 'special', label: '特別費',    cycles: ['年'] },
-  ];
-  const [item, setItem] = React.useState('food');
+function WireframeB({ rows }) {
+  const HM = window.HM;
+  const { CategoryEmoji } = window.HMC;
+  const categories = React.useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    rows.forEach(r => { if (!seen.has(r.category)) { seen.add(r.category); list.push(r.category); }});
+    return list;
+  }, [rows]);
+
+  const [item, setItem] = React.useState(categories[0] || '');
   const [cycleIdx, setCycleIdx] = React.useState(0);
-  const def = ITEMS.find(i => i.key === item);
 
-  const VIEWS = {
-    food:    { '週': { rem: '¥51,730', sub: 'あと4日 · 1日あたり ¥12,900 ペース', used: '¥35,270', budget: '¥87,000', pct: 41, list: window.MOCK.food },
-               '月': { rem: '¥80,500', sub: 'あと1日 · 月予算の進捗 35%',          used: '¥101,500', budget: '¥182,000', pct: 56, list: window.MOCK.food },
-               '年': { rem: '¥656,940', sub: '年内であと約 ¥82,000 / 月のペース',  used: '¥321,290', budget: '¥978,000', pct: 33, list: window.MOCK.food } },
-    daily:   { '月': { rem: '¥9,770',  sub: 'あと1日',                             used: '¥10,230', budget: '¥20,000', pct: 51, list: window.MOCK.daily },
-               '年': { rem: '¥161,650', sub: '年内であと約 ¥20,200 / 月',          used: '¥86,750', budget: '¥248,400', pct: 35, list: window.MOCK.daily } },
-    health:  { '月': { rem: '¥1,800', sub: 'シホは超過中', used: '¥6,200', budget: '¥8,000', pct: 78, list: window.MOCK.health },
-               '年': { rem: '¥77,350', sub: '検診・鍼灸込み', used: '¥18,650', budget: '¥96,000', pct: 19, list: window.MOCK.health } },
-    beauty:  { '夏': { rem: '¥82,935', sub: 'マイは振替で他から補填', used: '¥101,065', budget: '¥184,000', pct: 55, list: window.MOCK.family },
-               '冬': { rem: '¥152,000', sub: '冬シーズンはこれから', used: '¥0', budget: '¥152,000', pct: 0, list: window.MOCK.family },
-               '年': { rem: '¥633,210', sub: '美容含めた年合計', used: '¥190,790', budget: '¥824,000', pct: 23, list: window.MOCK.beauty } },
-    fun:     { '月': { rem: '¥29,700', sub: '余裕のある月', used: '¥9,800', budget: '¥39,500', pct: 24, list: window.MOCK.fun },
-               '年': { rem: '¥288,221', sub: 'ごちそう＋デート＋レジャー', used: '¥67,779', budget: '¥356,000', pct: 19, list: window.MOCK.fun } },
-    special: { '年': { rem: '¥257,147', sub: '家電が想定外に進行', used: '¥271,853', budget: '¥529,000', pct: 51, list: [{ name: '家電', rem: '−¥93,053', pct: 100, warn: true }, { name: '家具', rem: '¥340,000', pct: 0 }, { name: 'メンテ', rem: '¥10,200', pct: 59 }] } },
-  };
+  React.useEffect(() => {
+    if (!categories.includes(item)) setItem(categories[0] || '');
+  }, [categories, item]);
 
-  const cycleLabel = def.cycles[cycleIdx] || def.cycles[0];
-  const v = VIEWS[item][cycleLabel];
+  const lens = React.useMemo(
+    () => item ? HM.buildItemLens(rows, item) : null,
+    [rows, item]
+  );
+
+  if (!lens || !lens.cycles.length) {
+    return (
+      <div className="view" style={{ padding: 20 }}>
+        <window.EmptyMsg label="表示できるデータがありません" />
+      </div>
+    );
+  }
+
+  const safeIdx = Math.min(cycleIdx, lens.cycles.length - 1);
+  const v = lens.cycles[safeIdx];
 
   return (
     <div className="view">
       <div style={{ padding: '16px 18px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>残りいくら · 品目レンズ</div>
-        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>4月29日</div>
+        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{HM.todayInfo().label}</div>
       </div>
 
       <div className="no-scrollbar" style={{ padding: '14px 18px 6px', display: 'flex', gap: 6, overflowX: 'auto' }}>
-        {ITEMS.map(i => (
-          <div key={i.key} className={'chip' + (item === i.key ? ' active' : '')}
-               onClick={() => { setItem(i.key); setCycleIdx(0); }}>{i.label}</div>
+        {categories.map(c => (
+          <div key={c} className={'chip' + (item === c ? ' active' : '')}
+               onClick={() => { setItem(c); setCycleIdx(0); }}>
+            <CategoryEmoji category={c} />{c}
+          </div>
         ))}
       </div>
 
       <div style={{ padding: '4px 18px 10px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>サイクル</div>
-        {def.cycles.map((c, i) => (
-          <div key={c} className={'chip' + (i === cycleIdx ? ' active' : '')}
-               style={{ fontSize: 11, padding: '3px 10px' }} onClick={() => setCycleIdx(i)}>{c}</div>
+        {lens.cycles.map((c, i) => (
+          <div key={c.key} className={'chip' + (i === safeIdx ? ' active' : '')}
+               style={{ fontSize: 11, padding: '3px 10px' }} onClick={() => setCycleIdx(i)}>{c.label}</div>
         ))}
       </div>
 
       <div style={{ padding: '4px 22px 14px' }}>
         <div className="handwriting" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-          {def.label} · {cycleLabel}　あと使えるのは
+          {lens.category} · {v.label}　あと使えるのは
         </div>
         <div className="big-num" style={{ fontSize: 44, fontWeight: 500, lineHeight: 1.05, marginTop: 6 }}>{v.rem}</div>
         <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6 }}>{v.sub}</div>
       </div>
 
-      <div style={{ padding: '0 22px 4px' }}>
-        <div className="bar-track" style={{ height: 16 }}>
-          <div className="bar-fill diagonal" style={{ width: v.pct + '%' }} />
+      {!v.hideUsed && (
+        <div style={{ padding: '0 22px 4px' }}>
+          <div className="bar-track" style={{ height: 16 }}>
+            <div className="bar-fill diagonal" style={{ width: Math.min(100, v.pctVal) + '%' }} />
+          </div>
+          <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--ink-faint)' }}>
+            <span>使った {v.used}</span><span>予算 {v.budget}</span>
+          </div>
         </div>
-        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--ink-faint)' }}>
-          <span>使った {v.used}</span><span>予算 {v.budget}</span>
+      )}
+      {v.hideUsed && (
+        <div style={{ padding: '0 22px 4px' }}>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>
+            ※ 週次実績はまだ未連携。実績列が追加されたら自動表示します。
+          </div>
         </div>
-      </div>
+      )}
 
       <hr className="section-rule" />
 
@@ -397,22 +908,13 @@ function WireframeB() {
         <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>内訳</div>
         {v.list.map(r => (
           <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-            <div className="handwriting" style={{ width: 110, fontSize: 13 }}>{r.name}</div>
+            <div className="handwriting" style={{ width: 110, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
             <div style={{ flex: 1, height: 7, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ width: Math.min(100, r.pct) + '%', height: '100%', background: r.warn ? 'var(--accent)' : 'var(--ink)' }} />
+              <div style={{ width: Math.min(100, r.pct || 0) + '%', height: '100%', background: r.warn ? 'var(--accent)' : 'var(--ink)' }} />
             </div>
-            <div className="mono" style={{ width: 72, textAlign: 'right', fontSize: 12, color: r.warn ? 'var(--accent)' : 'var(--ink)' }}>{r.rem}</div>
+            <div className="mono" style={{ width: 78, textAlign: 'right', fontSize: 12, color: r.warn ? 'var(--accent)' : 'var(--ink)' }}>{r.rem}</div>
           </div>
         ))}
-      </div>
-
-      <hr className="section-rule" />
-
-      <div style={{ padding: '0 22px 16px' }}>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>今月の一言</div>
-        <div className="insight-box">
-          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{window.MOCK.insight}
-        </div>
       </div>
     </div>
   );
@@ -434,7 +936,7 @@ function Highlight({ title, value, sub }) {
   );
 }
 
-function Section({ cycle, period, children }) {
+function NoteSection({ cycle, period, children }) {
   return (
     <div>
       <div style={{ padding: '12px 22px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1.2px solid var(--ink)', marginTop: 8, background: 'var(--paper)' }}>
@@ -454,11 +956,11 @@ function NoteGroup({ name, total, pct, items }) {
         <div className="big-num" style={{ fontSize: 16 }}>{total}</div>
       </div>
       <div className="bar-track" style={{ height: 8, marginBottom: 4 }}>
-        <div className="bar-fill" style={{ width: pct + '%' }} />
+        <div className="bar-fill" style={{ width: Math.min(100, pct || 0) + '%' }} />
       </div>
       {items.map(it => (
         <div key={it.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '2px 0' }}>
-          <span className="handwriting" style={{ color: 'var(--ink-soft)' }}>　· {it.name}</span>
+          <span className="handwriting" style={{ color: 'var(--ink-soft)' }}>　・{it.name}</span>
           <span className="mono" style={{ color: it.warn ? 'var(--accent)' : 'var(--ink-soft)' }}>{it.rem}</span>
         </div>
       ))}
@@ -466,110 +968,110 @@ function NoteGroup({ name, total, pct, items }) {
   );
 }
 
-function NoteLine({ name, rem, pct, warn }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' }}>
-      <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{name}</div>
-      <div style={{ width: 50, height: 5, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: Math.min(100, pct) + '%', height: '100%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
-      </div>
-      <div className="mono" style={{ fontSize: 11, width: 72, textAlign: 'right', color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
-    </div>
-  );
-}
+function WireframeC({ rows }) {
+  const HM = window.HM;
+  const { CategoryEmoji } = window.HMC;
+  const t = HM.todayInfo();
+  const monthGroups = React.useMemo(() => HM.buildMonthGroups(rows), [rows]);
+  const weekGroups  = React.useMemo(() => HM.buildWeekGroups(rows),  [rows]);
+  const yearGroups  = React.useMemo(() => HM.buildYearGroups(rows),  [rows]);
+  const season = HM.currentSeason();
+  const seasonGroups = React.useMemo(() => HM.buildSeasonGroups(rows, season), [rows, season]);
+  const insight = HM.buildInsight(monthGroups);
 
-function ClothingLedger() {
-  const M = window.MOCK;
-  return (
-    <div style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div className="handwriting" style={{ fontSize: 14, fontWeight: 600 }}>被服　<span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>（家族で帳尻）</span></div>
-        <div className="big-num" style={{ fontSize: 16 }}>¥82,935</div>
-      </div>
-      <div style={{ height: 14, border: '1.2px solid var(--ink)', borderRadius: 3, display: 'flex', overflow: 'hidden', marginBottom: 8 }}>
-        <div style={{ width: '0%',  background: 'var(--ink)' }} />
-        <div style={{ width: '21%', background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
-        <div style={{ width: '6%',  background: 'var(--ink)' }} />
-        <div style={{ width: '15%', background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
-        <div style={{ width: '0%',  background: 'var(--ink)' }} />
-        <div style={{ width: '9%',  background: 'var(--paper-warm)', borderRight: '1.2px solid var(--ink)' }} />
-        <div style={{ width: '11%', background: 'var(--accent)' }} />
-        <div style={{ width: '0%',  background: 'var(--paper-warm)' }} />
-      </div>
-      {M.family.map(m => (
-        <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-          <div className="handwriting" style={{ width: 90, fontSize: 12 }}>　· 被服{m.name}</div>
-          <div style={{ flex: 1, height: 6, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ width: Math.min(100, m.pct) + '%', height: '100%', background: m.warn ? 'var(--accent)' : 'var(--ink)' }} />
-          </div>
-          <div className="mono" style={{ fontSize: 11, width: 72, textAlign: 'right', color: m.warn ? 'var(--accent)' : 'var(--ink)' }}>{m.rem}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+  const highlightMonth = monthGroups.slice().sort((a,b)=>b.budget-a.budget)[0];
+  const yearRemainTotal = yearGroups.reduce((s,g)=>s+(g.remain||0),0);
+  const weekTotal = weekGroups.reduce((s,g)=>s+g.weekly,0);
 
-function WireframeC() {
-  const M = window.MOCK;
   return (
     <div className="view notebook-bg">
       <div style={{ padding: '16px 22px 14px', borderBottom: '1.5px solid var(--ink)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <div className="handwriting" style={{ fontSize: 24, fontWeight: 600 }}>残りいくら帳</div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>2026.04</div>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{t.year}.{String(t.month).padStart(2,'0')}</div>
         </div>
-        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>今月のハイライト3つ ↓</div>
+        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>今月のハイライト ↓</div>
       </div>
 
       <div style={{ padding: '14px 18px 6px' }}>
         <div className="insight-box">
-          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{insight}
         </div>
       </div>
 
       <div className="no-scrollbar" style={{ padding: '8px 18px 10px', display: 'flex', gap: 8, overflowX: 'auto' }}>
-        <Highlight title="ゆとり費は控えめな月" value="¥29,700" sub="残り（あと1日）" />
-        <Highlight title="食費は順調ペース" value="¥51,730" sub="今週分の残り" />
-        <Highlight title="年間予算に余裕" value="¥1,540,398" sub="まだ65%残" />
+        {highlightMonth && (
+          <Highlight
+            title={highlightMonth.category + 'の今月残'}
+            value={highlightMonth.total}
+            sub={'進捗 ' + highlightMonth.pct + '%'}
+          />
+        )}
+        <Highlight title="今週の目安合計" value={HM.fmtYen(weekTotal)} sub={'月予算 ÷ ' + t.weeksInMonth + '週'} />
+        <Highlight title="年間の残り合計" value={HM.fmtYen(yearRemainTotal)} sub={t.year + '年 残'} />
       </div>
 
-      <Section cycle="毎週" period="今週（4/27〜5/3）">
-        {M.food.map(it => <NoteLine key={it.name} {...it} />)}
-      </Section>
-
-      <Section cycle="毎月" period="2026年4月">
-        <NoteGroup name="🍔 食費" total="¥80,500" pct={56} items={M.food} />
-        <NoteGroup name="🧹 日用品" total="¥9,770" pct={51} items={M.daily} />
-        <NoteGroup name="🏥 健康・医療" total="¥1,800" pct={75} items={M.health} />
-        <NoteGroup name="⛺️ 趣味・娯楽" total="¥29,700" pct={24} items={M.fun} />
-      </Section>
-
-      <Section cycle="シーズン" period="夏">
-        <ClothingLedger />
-      </Section>
-
-      <Section cycle="毎年" period="2026年">
-        {M.yearGroups.map(g => (
-          <div key={g.name} style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>{g.name}</div>
-              <div className="big-num" style={{ fontSize: 14 }}>{g.rem}</div>
+      {weekGroups.length > 0 && (
+        <NoteSection cycle="毎週" period={'今週の目安（÷' + t.weeksInMonth + '）'}>
+          {weekGroups.flatMap(g => g.items.map(it => (
+            <div key={g.category + '-' + it.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: '1px dashed var(--line)' }}>
+              <div className="handwriting" style={{ flex: 1, fontSize: 13 }}>{it.name}</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{g.category}</div>
+              <div className="mono" style={{ fontSize: 11, width: 78, textAlign: 'right' }}>{it.targetLabel}</div>
             </div>
-            <div className="bar-track" style={{ height: 7, marginTop: 5 }}>
-              <div className="bar-fill" style={{ width: g.pct + '%' }} />
-            </div>
-          </div>
-        ))}
-      </Section>
+          )))}
+        </NoteSection>
+      )}
 
-      <Section cycle="補足" period="参考">
-        <div style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)', opacity: 0.65 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div className="handwriting" style={{ fontSize: 12 }}>習い事経費・会社飲み会・クリーニング ほか</div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)' }}>6件</div>
-          </div>
-        </div>
-      </Section>
+      {monthGroups.length > 0 && (
+        <NoteSection cycle="毎月" period={t.monthLabel}>
+          {monthGroups.map(g => (
+            <NoteGroup
+              key={g.category}
+              name={<><CategoryEmoji category={g.category} />{g.category}</>}
+              total={g.total}
+              pct={g.pct}
+              items={g.items}
+            />
+          ))}
+        </NoteSection>
+      )}
+
+      {seasonGroups.length > 0 && (
+        <NoteSection cycle="シーズン" period={season === 'summer' ? '夏' : '冬'}>
+          {seasonGroups.map(g => (
+            <div key={g.category} style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>
+                  <CategoryEmoji category={g.category} />{g.category}
+                </div>
+                <div className="big-num" style={{ fontSize: 14 }}>{g.total}</div>
+              </div>
+              <div className="bar-track" style={{ height: 7, marginTop: 5 }}>
+                <div className="bar-fill" style={{ width: Math.min(100, g.pct) + '%' }} />
+              </div>
+            </div>
+          ))}
+        </NoteSection>
+      )}
+
+      {yearGroups.length > 0 && (
+        <NoteSection cycle="毎年" period={t.year + '年'}>
+          {yearGroups.map(g => (
+            <div key={g.category} style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>
+                  <CategoryEmoji category={g.category} />{g.category}
+                </div>
+                <div className="big-num" style={{ fontSize: 14 }}>{g.total}</div>
+              </div>
+              <div className="bar-track" style={{ height: 7, marginTop: 5 }}>
+                <div className="bar-fill" style={{ width: Math.min(100, g.pct) + '%' }} />
+              </div>
+            </div>
+          ))}
+        </NoteSection>
+      )}
 
       <div className="handwriting" style={{ padding: '8px 22px 8px', fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic', textAlign: 'center' }}>
         月末に夫婦で振り返り　·　次の意思決定のために
@@ -589,7 +1091,7 @@ function MiniCard({ label, period, rem, pct, spark, warn }) {
   return (
     <div className="sketch-box" style={{ padding: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div className="handwriting" style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
+        <div className="handwriting" style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
         <div className="mono" style={{ fontSize: 9, color: 'var(--ink-faint)' }}>{period}</div>
       </div>
       <div className="big-num" style={{ fontSize: 17, marginTop: 4, color: warn ? 'var(--accent)' : 'var(--ink)' }}>{rem}</div>
@@ -600,121 +1102,123 @@ function MiniCard({ label, period, rem, pct, spark, warn }) {
         ))}
       </svg>
       <div className="bar-track" style={{ height: 5, marginTop: 4 }}>
-        <div className="bar-fill" style={{ width: pct + '%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
+        <div className="bar-fill" style={{ width: Math.min(100, pct||0) + '%', background: warn ? 'var(--accent)' : 'var(--ink)' }} />
       </div>
     </div>
   );
 }
 
-function SeesawSide({ name, pct, rem, light, small }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div className="handwriting" style={{ fontSize: small ? 11 : 12 }}>{name}</div>
-      <div className="bar-track" style={{ height: 8, marginTop: 3 }}>
-        <div className={'bar-fill' + (light ? ' light' : '')} style={{ width: pct + '%' }} />
-      </div>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-soft)', marginTop: 2 }}>残 {rem}</div>
-    </div>
-  );
-}
+function WireframeD({ rows }) {
+  const HM = window.HM;
+  const { CategoryEmoji } = window.HMC;
+  const t = HM.todayInfo();
 
-function WireframeD() {
-  const [period, setPeriod] = React.useState('month');
-  const M = window.MOCK;
+  const monthGroups = React.useMemo(() => HM.buildMonthGroups(rows), [rows]);
+  const yearGroups  = React.useMemo(() => HM.buildYearGroups(rows),  [rows]);
+  const season = HM.currentSeason();
+  const seasonGroups = React.useMemo(() => HM.buildSeasonGroups(rows, season), [rows, season]);
+  const insight = HM.buildInsight(monthGroups);
+
+  let totalBudget = 0, totalActual = 0;
+  monthGroups.forEach(g => { totalBudget += g.budget; totalActual += g.actual; });
+  const totalRemain = totalBudget - totalActual;
+  const totalPct = HM.pct(totalActual, totalBudget);
+
+  const top4 = monthGroups.slice().sort((a,b) => b.budget - a.budget).slice(0, 4);
+  function sparkFor(category) {
+    const items = rows.filter(r => r.category === category && r.cycles.month);
+    const arr = Array(t.month).fill(0);
+    items.forEach(it => {
+      for (let i = 0; i < t.month; i++) arr[i] += it.monthly[i] || 0;
+    });
+    return arr.length ? arr : [0];
+  }
+
+  let yBudget = 0, yActual = 0, yRemain = 0;
+  yearGroups.forEach(g => { yBudget += g.budget; yActual += g.actual; yRemain += g.remain; });
 
   return (
     <div className="view">
       <div style={{ padding: '16px 18px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div className="handwriting" style={{ fontSize: 22, fontWeight: 600 }}>残りいくら</div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>4月29日 · 月末まで1日</div>
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {[['week','週'],['month','月'],['season','季'],['year','年']].map(([k,l]) => (
-            <div key={k} className={'chip' + (period === k ? ' active' : '')} onClick={() => setPeriod(k)}>{l}</div>
-          ))}
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>{t.label} · 月末まで{t.monthDaysLeft}日</div>
         </div>
       </div>
 
       <div style={{ padding: '0 18px 10px' }}>
         <div className="insight-box">
-          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{M.insight}
+          <span className="accent" style={{ marginRight: 4 }}>⇄</span>{insight}
         </div>
       </div>
 
       <div style={{ padding: '0 18px 10px' }}>
         <div className="sketch-box" style={{ padding: 16, background: 'var(--paper-warm)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>月の重要カテゴリ合計</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>残45%</div>
+            <div className="handwriting" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{t.monthLabel} カテゴリ合計</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>残{Math.max(0, 100 - totalPct)}%</div>
           </div>
-          <div className="big-num" style={{ fontSize: 32, marginTop: 4 }}>¥121,770</div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 10 }}>/ ¥272,500</div>
+          <div className="big-num" style={{ fontSize: 32, marginTop: 4 }}>{HM.fmtYen(totalRemain)}</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 10 }}>/ {HM.fmtYen(totalBudget)}</div>
           <div className="bar-track" style={{ height: 12 }}>
-            <div className="bar-fill diagonal" style={{ width: '55%' }} />
+            <div className="bar-fill diagonal" style={{ width: Math.min(100, totalPct) + '%' }} />
           </div>
         </div>
       </div>
 
-      <div style={{ padding: '0 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <MiniCard label="食費" period="今週" rem="¥51,730" pct={41} spark={[3,5,4,2,7,3,1]} />
-        <MiniCard label="日用品" period="今月" rem="¥9,770" pct={51} spark={[5,3,4,5,2,3]} />
-        <MiniCard label="ゆとり" period="今月" rem="¥29,700" pct={24} spark={[2,3,2,1,4,2]} />
-        <MiniCard label="被服" period="夏" rem="¥82,935" pct={55} warn spark={[0,0,3,0,0,9]} />
-      </div>
-
-      <div style={{ padding: '12px 18px 4px' }}>
-        <div className="sketch-box dashed" style={{ padding: 12 }}>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>連動カテゴリ ⇄</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <SeesawSide name="外食" pct={72} rem="¥7,200" />
-            <div className="accent" style={{ fontSize: 18, color: 'var(--accent)' }}>⇄</div>
-            <SeesawSide name="ごちそう" pct={23} rem="¥9,200" light />
-          </div>
-          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <SeesawSide name="スペシャルデート" pct={17} rem="¥14,900" small light />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>(年枠)</div>
-            <div style={{ flex: 1 }}></div>
-          </div>
-          <div className="handwriting accent" style={{ fontSize: 11, color: 'var(--accent)', marginTop: 8, fontStyle: 'italic' }}>
-            外食が進んだ分、ごちそう＆デートは温存しておけそう
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '12px 18px 4px' }}>
-        <div className="sketch-box" style={{ padding: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-            <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>被服（家族・夏）</div>
-            <div className="big-num" style={{ fontSize: 14 }}>¥82,935</div>
-          </div>
-          {M.family.map(m => (
-            <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-              <div className="handwriting" style={{ width: 70, fontSize: 12 }}>{m.name}</div>
-              <div style={{ flex: 1, height: 7, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ width: Math.min(100, m.pct) + '%', height: '100%', background: m.warn ? 'var(--accent)' : 'var(--ink)' }} />
-              </div>
-              <div className="mono" style={{ fontSize: 10, width: 72, textAlign: 'right', color: m.warn ? 'var(--accent)' : 'var(--ink)' }}>{m.rem}</div>
-            </div>
+      {top4.length > 0 && (
+        <div style={{ padding: '0 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {top4.map(g => (
+            <MiniCard
+              key={g.category}
+              label={g.category}
+              period={t.monthLabel}
+              rem={g.total}
+              pct={g.pct}
+              warn={g.warn}
+              spark={sparkFor(g.category)}
+            />
           ))}
         </div>
-      </div>
+      )}
 
-      <div style={{ padding: '12px 18px 4px' }}>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>年間 · 特別費＋交際＋健康</div>
-        <div className="bar-track" style={{ height: 12 }}>
-          <div className="bar-fill" style={{ width: '35%' }} />
+      {seasonGroups.length > 0 && (
+        <div style={{ padding: '12px 18px 4px' }}>
+          <div className="sketch-box" style={{ padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+              <div className="handwriting" style={{ fontSize: 13, fontWeight: 600 }}>
+                {season === 'summer' ? '夏' : '冬'}シーズン合計
+              </div>
+              <div className="big-num" style={{ fontSize: 14 }}>
+                {HM.fmtYen(seasonGroups.reduce((s,g)=>s+(g.remain||0),0))}
+              </div>
+            </div>
+            {seasonGroups.map(g => (
+              <div key={g.category} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                <div className="handwriting" style={{ width: 100, fontSize: 12 }}>
+                  <CategoryEmoji category={g.category} />{g.category}
+                </div>
+                <div style={{ flex: 1, height: 7, background: 'var(--paper-warm)', border: '1px solid var(--ink-faint)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: Math.min(100, g.pct) + '%', height: '100%', background: 'var(--ink)' }} />
+                </div>
+                <div className="mono" style={{ fontSize: 10, width: 78, textAlign: 'right' }}>{g.total}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10 }}>
-          <span>残 ¥814,357</span><span style={{ color: 'var(--ink-faint)' }}>あと8か月</span>
-        </div>
-      </div>
+      )}
 
-      <div style={{ padding: '12px 18px 16px' }}>
-        <div className="handwriting" style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '8px 12px', border: '1px dashed var(--ink-faint)', borderRadius: 6, textAlign: 'center', cursor: 'pointer' }}>
-          補足カテゴリ（6件）を表示 ›
+      {yBudget > 0 && (
+        <div style={{ padding: '12px 18px 4px' }}>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>{t.year}年 · 年合計</div>
+          <div className="bar-track" style={{ height: 12 }}>
+            <div className="bar-fill" style={{ width: Math.min(100, HM.pct(yActual, yBudget)) + '%' }} />
+          </div>
+          <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10 }}>
+            <span>残 {HM.fmtYen(yRemain)}</span><span style={{ color: 'var(--ink-faint)' }}>あと{12 - t.month}か月</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -722,11 +1226,63 @@ window.WireframeD = WireframeD;
 </script>
 
 <!-- ============================================================
-     AppShell — 4タブ切替
+     AppShell + ローディング・エラー画面
      ============================================================ -->
 <script type="text/babel" data-presets="react">
-function AppShell() {
+function LoadingScreen() {
+  return (
+    <div className="fullscreen-state">
+      <div className="state-card">
+        <div className="spinner" />
+        <div className="title">読み込み中…</div>
+        <div className="body">スプレッドシートから残り予算を取得しています</div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({ message, onRetry }) {
+  return (
+    <div className="fullscreen-state">
+      <div className="state-card">
+        <div className="title" style={{ color: 'var(--accent)' }}>データを読み込めませんでした。</div>
+        <div className="body">
+          スプレッドシートの共有設定を確認してください。<br />
+          （リンクを知っている全員が「閲覧者」以上）
+        </div>
+        {message && (
+          <div className="url" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{message}</div>
+        )}
+        <div className="url">{window.CSV_URL}</div>
+        <button className="retry-btn" onClick={onRetry}>再読み込み</button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [state, setState] = React.useState({ status: 'loading', rows: null, error: null });
   const [view, setView] = React.useState('cycle');
+
+  const load = React.useCallback(async () => {
+    setState({ status: 'loading', rows: null, error: null });
+    try {
+      const result = await window.HM.loadSheet();
+      const rows = result.rows;
+      if (!rows.length) throw new Error('データ行がありません');
+      setState({ status: 'ready', rows, error: null });
+    } catch (e) {
+      console.error(e);
+      setState({ status: 'error', rows: null, error: e && e.message ? e.message : String(e) });
+    }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+
+  if (state.status === 'loading') return <LoadingScreen />;
+  if (state.status === 'error')   return <ErrorScreen message={state.error} onRetry={load} />;
+
   const VIEWS = [
     { key: 'cycle',     label: 'サイクル', comp: window.WireframeA, icon: '🗓' },
     { key: 'item',      label: '品目',     comp: window.WireframeB, icon: '🔍' },
@@ -735,14 +1291,9 @@ function AppShell() {
   ];
   const Active = VIEWS.find(v => v.key === view).comp;
 
-  // ビュー切替時に上にスクロール
-  React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
-  }, [view]);
-
   return (
     <div className="app-root">
-      <Active />
+      <Active rows={state.rows} />
       <div className="tabbar" role="tablist">
         {VIEWS.map(v => (
           <div key={v.key}
@@ -759,7 +1310,7 @@ function AppShell() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<AppShell />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
