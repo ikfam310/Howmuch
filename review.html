@@ -834,12 +834,20 @@ function ScreenC({items}){
   function groupByCat(list){const m=new Map();list.forEach(it=>{if(!m.has(it.cat))m.set(it.cat,[]);m.get(it.cat).push(it);});return Array.from(m.entries());}
   function monthTarget(it){if(remaining<=0||it.bYear<=0)return null;return Math.round((it.bYear-it.aYear)/remaining);}
   function monthFlag(tgt,bMonth){if(tgt==null||bMonth<=0)return'';return devFlag((bMonth-tgt)/bMonth);}
-  function yearFlag(it){if(it.bYear<=0)return'';const dev=pct(it.aYear,it.bYear)-basePct;if(dev>=30)return'🚨';if(dev>=15)return'⚠️';return'';}
+  function yearFlag(it){
+    if(it.bYear<=0)return'';
+    if(it.aYear===0)return'';
+    if(it.rYear<0)return'🚨';
+    if(it.rYear===0)return'✅';
+    const dev=pct(it.aYear,it.bYear)-basePct;
+    if(dev>=15)return'⚠️';
+    return'';
+  }
 
   const overItems=monthItems.filter(it=>{if(passed<=0||it.bMonth<=0)return false;return it.aYear/passed>it.bMonth*1.1;});
   const monthType=overItems.length>2?'alert':overItems.length>0?'warn':'good';
   const overNames=overItems.map(it=>it.name.replace(/[②③④]/g,'').trim());
-  const monthComment=overItems.length===0?`全品目が概ね計画のペースです。目標額の範囲で今月も動けば、年末は計画通りに着地できます。`:overItems.length===1?`${overNames[0]}が計画より多めのペースです。「目標額」を今月から意識するだけで、年末までに軌道修正できます。`:`${overNames.join('・')}が計画より多めのペースです。それぞれの目標額を今月の上限の目安にして、年末着地を目指しましょう。一気に減らそうとせず、毎月少しずつ戻すのがコツです。`;
+  const monthComment=overItems.length===0?`全品目が概ね計画のペースです。今月からの目標額の範囲で今月も動けば、年末は計画通りに着地できます。`:overItems.length===1?`${overNames[0]}が計画より多めのペースです。「今月からの目標額」を意識するだけで、年末までに軌道修正できます。`:`${overNames.join('・')}が計画より多めのペースです。それぞれの今月からの目標額を今月の上限の目安にして、年末着地を目指しましょう。一気に減らそうとせず、毎月少しずつ戻すのがコツです。`;
 
   const dangerItems=yearItems.filter(it=>it.rYear<0);
   const warnItems=yearItems.filter(it=>it.rYear>=0&&pct(it.aYear,it.bYear)>basePct+15);
@@ -863,11 +871,11 @@ function ScreenC({items}){
         {tab==='month'&&(
           <>
             <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:10,lineHeight:1.6}}>
-              月予算=年予算÷12　月平均実績=年実績÷{passed}ヶ月　目標額=年残り÷残り{remaining}ヶ月<br/>
-              フラグ：🚨 目標が計画の70%未満　⚠️ 70〜90%未満
+              月予算=年予算÷12　月平均実績=年実績÷{passed}ヶ月　今月からの目標額=年残り÷残り{remaining}ヶ月<br/>
+              フラグ：🚨 今月からの目標額が計画の70%未満　⚠️ 70〜90%未満
             </div>
             <table className="itable">
-              <thead><tr><th>品目</th><th className="r">月予算</th><th className="r">月平均実績</th><th className="r">目標額</th><th className="r"></th></tr></thead>
+              <thead><tr><th>品目</th><th className="r">月予算</th><th className="r">月平均実績</th><th className="r">今月からの目標額</th><th className="r"></th></tr></thead>
               <tbody>
                 {groupByCat(monthItems).map(([cat,catItems])=>(
                   <React.Fragment key={cat}>
@@ -900,7 +908,7 @@ function ScreenC({items}){
           <>
             <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:10,lineHeight:1.6}}>
               基準消化率{basePct}%（{passed}ヶ月÷12）との比較<br/>
-              フラグ：🚨 基準より+30%超　⚠️ +15〜30%
+              ✅ 予算を使い切った　⚠️ 消化ペースが基準より早い　🚨 予算超過
             </div>
             <table className="itable">
               <thead><tr><th>品目</th><th className="r">年予算</th><th className="r">年実績</th><th className="r">年残り</th><th className="r"></th></tr></thead>
