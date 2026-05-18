@@ -1,0 +1,15 @@
+{
+  "name": "残りいくら",
+  "short_name": "残りいくら",
+  "start_url": "./review.html",
+  "display": "standalone",
+  "background_color": "#fafaf6",
+  "theme_color": "#2a3447",
+  "icons": [
+    {
+      "src": "../ikura.PNG",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}
