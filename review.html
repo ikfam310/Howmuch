@@ -493,7 +493,17 @@ function MonthGroupCard({groupName,items,passed,remaining,funFilter,keyItemName}
       comment=`【判断基準】${keyItem.name}の累計実績（${yen(keyCumActual)}）が累計予算（${yen(keyCumBudget)}）を${yen(Math.abs(keyOver))}超過しています。そのため今月のゆとり費は控えめにしましょう。${keyItem.name}が予算内に収まれば来月から通常予算（${yen(funBMonth)}/月）で使えます。`;
     }
   } else if(hasFun){
-    comment=funOK?`基礎費は計画内のペースです。今月のゆとり費は${yen(funBMonth)}を目安にどうぞ。`:`基礎費が累計で超過しています。今月のゆとり費は控えめにしましょう。`;
+    // 合計累計で判断するグループ（食費・日用品）
+    const baseLabel=groupName==='食費'
+      ?'スーパー・コンビニ・外食・健康食品の累計合計'
+      :groupName==='日用品'
+      ?'日用品・日用品（子供）の累計合計'
+      :'基礎費の累計';
+    if(funOK){
+      comment=`${baseLabel}（${yen(baseCumActual)}）が累計予算（${yen(baseCumBudget)}）の範囲内です。今月のゆとり費は月予算通り${yen(funBMonth)}使えます。`;
+    } else {
+      comment=`${baseLabel}（${yen(baseCumActual)}）が累計予算（${yen(baseCumBudget)}）を${yen(Math.abs(baseCumOver))}超過しています。今月のゆとり費はお小遣いから使いましょう。累計が予算内に収まれば来月から通常予算（${yen(funBMonth)}/月）で使えます。`;
+    }
   } else {
     comment=baseCumOver>0?`月平均が計画より${yen(Math.round(baseAvg-baseBMonth))}（+${baseOverPct}%）多いペースです。今月以降は抑えていきましょう。`:`計画内のペースです。このまま推移すれば年末は計画通りに着地できます。`;
   }
@@ -812,9 +822,9 @@ function ScreenB({items}){
           if(mode==='year'){
             return <YearGroupCard key={gname} groupName={gname} items={its} passed={passed}/>;
           }
-          // month — 食費は外食が判断基準、日用品は日用品_子供が判断基準
+          // month — 食費は基礎食費合計、日用品は日用品+日用品_子供の合計が判断基準
           const funFilter=gname==='食費'?isFoodFun:gname==='日用品'?isDailyFun:null;
-          const keyItemName=gname==='食費'?'外食':gname==='日用品'?'日用品＿子供':null;
+          const keyItemName=null; // 個別品目でなく基礎費の合計累計で判断
           return <MonthGroupCard key={gname} groupName={gname} items={its} passed={passed} remaining={remaining} funFilter={funFilter} keyItemName={keyItemName}/>;
         })}
       </div>
