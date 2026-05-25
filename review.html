@@ -1,7 +1,1483 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<meta charset="UTF-8"/><!DOCTYPE html>
+<html lang="ja">
+<head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"/>
+<title>残りいくら</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Yomogi&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="apple-touch-icon" href="ikura.PNG">
+<link rel="icon" href="ikura.PNG">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="残りいくら">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<style>
+:root{
+  --ink:#2a3447;--ink-soft:#5d6577;--ink-faint:#9aa1ad;
+  --paper:#fafaf6;--paper-warm:#f1eee4;--line:#d8d4c8;
+  --green:#4f8a6a;--red:#b85b4a;--orange:#c98a3f;
+  --font-jp:'Yomogi','Klee One',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --tabbar-h:68px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:var(--paper);}
+body{font-family:'Klee One',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;overscroll-behavior-y:contain;}
+#root{width:100%;min-height:100vh;}
+.app{width:100%;min-height:100vh;padding-top:var(--safe-top);padding-bottom:calc(var(--tabbar-h)+var(--safe-bottom)+32px);}
+.view{width:100%;max-width:600px;margin:0 auto;}
+.jp{font-family:var(--font-jp);}
+.mono{font-family:var(--font-mono);}
+.bar-track{height:8px;background:var(--paper-warm);border:1.2px solid var(--line);border-radius:999px;overflow:hidden;margin:5px 0;}
+.bar-fill{height:100%;border-radius:999px;}
+.bar-ok{background:var(--green);}
+.bar-warn{background:var(--orange);}
+.bar-over{background:var(--red);}
+.hl{border-left:3px solid var(--ink-soft);padding:10px 13px 12px;background:var(--paper-warm);margin-bottom:12px;font-size:13px;line-height:1.8;font-family:var(--font-jp);border-radius:0 4px 4px 0;word-break:break-all;overflow:visible;display:block;}
+.hl-good{border-left-color:var(--green);}
+.hl-warn{border-left-color:var(--orange);}
+.hl-alert{border-left-color:var(--red);}
+.hl-label{font-size:10px;font-family:var(--font-mono);color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.kpi{border:1.5px solid var(--ink);border-radius:8px;padding:12px;background:var(--paper);}
+.kpi-label{font-size:11px;color:var(--ink-soft);font-family:var(--font-jp);}
+.kpi-value{font-size:28px;font-weight:600;font-family:var(--font-mono);margin-top:4px;letter-spacing:-.02em;}
+.kpi-sub{font-size:10px;color:var(--ink-faint);margin-top:3px;font-family:var(--font-mono);}
+.kpi-ok .kpi-value{color:var(--green);}
+.kpi-warn .kpi-value{color:var(--orange);}
+.kpi-over .kpi-value{color:var(--red);}
+.sec{font-size:11px;font-weight:600;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--line);font-family:var(--font-jp);color:var(--ink-soft);}
+.gcard{border:1.5px solid var(--ink);border-radius:10px;overflow:hidden;background:var(--paper);margin-bottom:14px;}
+.gcard-head{background:var(--paper-warm);padding:12px 16px;border-bottom:1px solid var(--line);}
+.gcard-head-row{display:flex;justify-content:space-between;align-items:center;}
+.gcard-title{font-size:15px;font-weight:600;font-family:var(--font-jp);}
+.gcard-desc{font-size:11px;color:var(--ink-faint);margin-top:3px;font-family:var(--font-jp);}
+.gcard-body{padding:14px 16px;}
+.conclude{background:var(--paper-warm);border-radius:8px;padding:12px 14px;margin-bottom:12px;}
+.conclude-label{font-size:10px;font-family:var(--font-mono);color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+.conclude-amount{font-size:28px;font-weight:600;font-family:var(--font-mono);letter-spacing:-.02em;}
+.conclude-sub{font-size:11px;color:var(--ink-soft);font-family:var(--font-jp);margin-top:4px;}
+.base-summary{margin-bottom:10px;}
+.reason{font-size:11px;color:var(--ink-soft);font-family:var(--font-jp);margin-bottom:8px;padding:6px 10px;background:rgba(0,0,0,.03);border-radius:5px;}
+.item-rows{margin-top:8px;}
+.item-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--line);}
+.item-name{font-size:12px;font-family:var(--font-jp);color:var(--ink-soft);flex:1;padding-right:8px;}
+.item-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+.item-remain{font-size:12px;font-family:var(--font-mono);font-weight:600;}
+.item-remain-ok{color:var(--green);}
+.item-remain-warn{color:var(--orange);}
+.item-remain-over{color:var(--red);}
+.item-flag{font-size:12px;}
+.item-sub{font-size:10px;font-family:var(--font-mono);color:var(--ink-faint);}
+.gcomment{font-size:12px;color:var(--ink-soft);line-height:1.8;margin-top:12px;padding:12px 14px 16px;border-top:1px dashed var(--line);font-family:var(--font-jp);background:rgba(0,0,0,.02);border-radius:0 0 6px 6px;word-break:break-all;}
+.tab-inner{display:flex;gap:4px;padding:4px;background:var(--paper-warm);border:1.2px solid var(--ink);border-radius:8px;margin-bottom:14px;}
+.tab-item{flex:1;text-align:center;padding:8px 4px;border-radius:5px;font-size:12px;cursor:pointer;color:var(--ink-soft);font-family:var(--font-jp);font-weight:500;transition:all .15s;}
+.tab-active{background:var(--ink);color:var(--paper);}
+.itable{width:100%;border-collapse:collapse;font-size:12px;}
+.itable th{text-align:left;padding:5px 4px;font-size:10px;font-weight:500;color:var(--ink-faint);border-bottom:1.5px solid var(--ink);font-family:var(--font-mono);letter-spacing:.04em;}
+.itable th.r{text-align:right;}
+.itable td{padding:9px 4px;border-bottom:1px solid #ebe8e0;vertical-align:middle;}
+.itable td.r{text-align:right;font-family:var(--font-mono);font-size:11px;}
+.cat-row td{font-size:11px;font-weight:600;color:var(--ink-soft);background:var(--paper-warm);padding:5px 8px;}
+.badge{display:inline-block;font-size:10px;font-family:var(--font-mono);padding:2px 7px;border-radius:4px;font-weight:600;}
+.badge-ok{background:#e7f0ea;color:var(--green);}
+.badge-warn{background:#faf0e1;color:var(--orange);}
+.badge-over{background:#f6e3df;color:var(--red);}
+.summary{border-left:3px solid var(--ink-soft);padding:10px 14px 14px;background:var(--paper-warm);margin-top:14px;margin-bottom:4px;font-size:12px;line-height:1.8;font-family:var(--font-jp);border-radius:0 4px 4px 0;word-break:break-all;}
+.summary-good{border-left-color:var(--green);}
+.summary-warn{border-left-color:var(--orange);}
+.summary-alert{border-left-color:var(--red);}
+.summary-title{font-size:10px;font-family:var(--font-mono);color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.tabbar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--tabbar-h)+var(--safe-bottom));background:rgba(250,250,246,.96);border-top:1.5px solid var(--ink);display:flex;align-items:stretch;padding-bottom:var(--safe-bottom);backdrop-filter:blur(10px);z-index:100;}
+.tabbar-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;cursor:pointer;color:var(--ink-faint);font-family:var(--font-jp);transition:color .15s;}
+.tabbar-active{color:var(--ink);}
+.tabbar-icon{font-size:20px;}
+.fullscreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;}
+.state-card{border:1.5px solid var(--ink);border-radius:10px;padding:32px 24px;background:var(--paper-warm);text-align:center;max-width:340px;width:100%;}
+.state-title{font-size:16px;font-weight:600;margin-bottom:8px;font-family:var(--font-jp);}
+.state-body{font-size:13px;color:var(--ink-soft);line-height:1.7;font-family:var(--font-jp);}
+.err-msg{font-size:11px;font-family:var(--font-mono);margin-top:12px;padding:8px;background:var(--paper);border:1px solid #f6e3df;border-radius:4px;word-break:break-all;color:var(--red);}
+.retry-btn{margin-top:16px;padding:9px 22px;background:var(--ink);color:var(--paper);border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:var(--font-jp);}
+.spinner{width:24px;height:24px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── 画面D専用 ── */
+.current-step-card{border:2px solid var(--ink);border-radius:10px;padding:16px;background:var(--paper-warm);margin-bottom:14px;}
+.current-step-num{font-size:11px;font-family:var(--font-mono);color:var(--ink-faint);margin-bottom:4px;}
+.current-step-title{font-size:22px;font-weight:600;font-family:var(--font-jp);}
+.current-step-desc{font-size:12px;color:var(--ink-soft);font-family:var(--font-jp);margin-top:6px;line-height:1.7;}
+.next-step-box{border:1.5px solid var(--ink);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--paper);}
+.next-step-label{font-size:13px;font-weight:600;font-family:var(--font-jp);margin-bottom:10px;}
+.next-step-gap{font-size:16px;font-weight:600;font-family:var(--font-mono);color:var(--red);margin-top:8px;}
+.next-step-hint{font-size:11px;color:var(--ink-soft);font-family:var(--font-jp);margin-top:4px;}
+.donut-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.donut-card{border:1.5px solid var(--ink);border-radius:8px;padding:12px;background:var(--paper);}
+.donut-label{font-size:11px;font-family:var(--font-jp);color:var(--ink-soft);margin-bottom:4px;font-weight:600;}
+.donut-legend{margin-top:8px;}
+.donut-legend-item{display:flex;justify-content:space-between;font-size:10px;font-family:var(--font-jp);padding:2px 0;color:var(--ink-soft);}
+.donut-legend-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ★ 設定：ここだけ変更すればOK -->
+<script>
+const SHEET_ID='1Nc3U97vzp7hEaBdn1mLGQKo8DkfhBAza8b39IHQETEI';
+function csvUrl(sheet){return'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(sheet)+'&_='+Date.now();}
+window.CSV_NOKORI=csvUrl('残り予算');
+window.CSV_JISSEKI=csvUrl('実績管理');
+window.MONTHLY_INCOME=520000;
+</script>
+
+<!-- ユーティリティ -->
+<script>
+function parseCSV(t){
+  if(t.charCodeAt(0)===0xFEFF)t=t.slice(1);
+  const rows=[];let row=[],cell='',inQ=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i],nc=t[i+1];
+    if(inQ){if(c==='"'&&nc==='"'){cell+='"';i++;}else if(c==='"')inQ=false;else cell+=c;}
+    else{if(c==='"')inQ=true;else if(c===','){row.push(cell);cell='';}
+    else if(c==='\r'){}else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';}else cell+=c;}
+  }
+  if(cell||row.length){row.push(cell);rows.push(row);}
+  return rows;
+}
+function n(s){
+  if(!s&&s!==0)return 0;
+  s=String(s).trim().replace(/[¥￥,円\s]/g,'');
+  let neg=false;
+  if(/^[(（]/.test(s)&&/[)）]$/.test(s)){neg=true;s=s.slice(1,-1);}
+  if(/^[−–\-]/.test(s)){neg=true;s=s.slice(1);}
+  const v=parseFloat(s);return isNaN(v)?0:(neg?-v:v);
+}
+function yen(v){if(v==null||isNaN(v))return'—';const r=Math.round(v);return(r<0?'−¥':'¥')+Math.abs(r).toLocaleString();}
+function pct(u,t){if(!t||t<=0)return 0;return Math.max(0,Math.min(999,Math.round(u/t*100)));}
+function today(){const d=new Date();return{year:d.getFullYear(),month:d.getMonth()+1,day:d.getDate(),label:`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${'日月火水木金土'[d.getDay()]}`};}
+function isSummerNow(){const m=new Date().getMonth()+1;return m>=3&&m<=8;}
+window.U={parseCSV,n,yen,pct,today,isSummerNow};
+</script>
+
+<!-- データロード -->
+<script type="text/babel" data-presets="react">
+// チェックボックス値（TRUE/FALSE/○/空）を真偽値に変換
+function isTruthy(v){
+  if(v==null||v===undefined)return false;
+  const s=String(v).trim();
+  if(s===''||s==='FALSE'||s==='false'||s==='0')return false;
+  return true;
+}
+
+// 分類文字列（C列）から敵番号を判定
+function enemyNum(cls){
+  if(cls.startsWith('1'))return 1;
+  if(cls.startsWith('2'))return 2;
+  if(cls.startsWith('3'))return 3;
+  if(cls.startsWith('4'))return 4;
+  return 0;
+}
+
+// 費目（A列）からカテゴリを取得（絵文字付きならそのまま使う）
+function catFromFee(fee){
+  return fee.trim();
+}
+
+async function loadNokori(){
+  const res=await fetch(window.CSV_NOKORI,{credentials:'omit'});
+  if(!res.ok)throw new Error(`HTTP ${res.status} — 残り予算`);
+  const text=await res.text();
+  if(/<html/i.test(text.slice(0,300)))throw new Error('スプレッドシートの共有設定を確認してください');
+  const grid=window.U.parseCSV(text);
+  // ヘッダー行を探す（「費目」列があるはずの行）
+  const hi=grid.findIndex(r=>r.some(c=>String(c).trim()==='費目'||String(c).trim()==='詳細'));
+  if(hi<0)throw new Error('費目列が見つかりません');
+  const headers=grid[hi].map(h=>String(h).trim());
+  const rows=grid.slice(hi+1).filter(r=>r.some(v=>String(v).trim()));
+  const items=rows.map(r=>{
+    const o={};headers.forEach((h,i)=>{o[h]=r[i]!=null?String(r[i]).trim():'';});return o;
+  }).filter(r=>r['詳細']&&r['分類']&&enemyNum(r['分類'])>0).map(r=>{
+    const cat=catFromFee(r['費目']);
+    const cls=r['分類'];
+    const enemy=enemyNum(cls);
+    const key=`${enemy}_${r['詳細']}`;
+    return{
+      key,cat,enemy,
+      name:r['詳細'].replace(/[①②③④]/g,'').trim(),
+      group:r['グループ']||'',
+      isMon:isTruthy(r['月集計']),
+      isYear:isTruthy(r['年集計']),
+      isSummer:isTruthy(r['シーズン夏集計(3-8月)']!==undefined?r['シーズン夏集計(3-8月)']:r['シーズン夏集計（3-8月）']),
+      isWinter:isTruthy(r['シーズン冬集計(9-2月)']!==undefined?r['シーズン冬集計(9-2月)']:r['シーズン冬集計（9-2月）']),
+      bYear:window.U.n(r['年予算']),
+      bMonth:window.U.n(r['月予算']),
+      bSummer:window.U.n(r['シーズン夏予算']),
+      bWinter:window.U.n(r['シーズン冬予算']),
+      aYear:window.U.n(r['年実績']),
+      aSummer:window.U.n(r['シーズン夏実績']),
+      aWinter:window.U.n(r['シーズン冬実績']),
+      rYear:window.U.n(r['年残り']),
+      rSummer:window.U.n(r['シーズン夏残り']),
+      rWinter:window.U.n(r['シーズン冬残り']),
+      monthly:Array.from({length:12},(_,i)=>window.U.n(r[`${i+1}月実績`])),
+    };
+  });
+
+  // 月次集計をitemsから計算（実績管理シートを読まずに済む）
+  const totals={
+    month1:Array(12).fill(0),
+    month2:Array(12).fill(0),
+    month3:Array(12).fill(0),
+    month4:Array(12).fill(0),
+    month12:Array(12).fill(0),
+  };
+  for(const it of items){
+    const arr=it.enemy===1?totals.month1:it.enemy===2?totals.month2:it.enemy===3?totals.month3:totals.month4;
+    for(let i=0;i<12;i++)arr[i]+=it.monthly[i];
+  }
+  // 振り返り対象：敵1＋敵2
+  for(let i=0;i<12;i++)totals.month12[i]=totals.month1[i]+totals.month2[i];
+
+  return{items,totals};
+}
+
+async function loadAll(){
+  return await loadNokori();
+}
+window.loadAll=loadAll;
+</script>
+
+<!-- 画面A：振り返り -->
+<script type="text/babel" data-presets="react">
+function ScreenA({items,totals}){
+  const t=window.U.today();
+  const{yen,pct}=window.U;
+  const INC=window.MONTHLY_INCOME;
+  const passed=t.month-1;
+  const remaining=12-passed;
+  const lastIdx=t.month>=2?t.month-2:-1;
+
+  // ── 毎月費（分類1・2）──
+  const monthData=totals.month12; // 分類1+2の月別合計
+  const lastExp=lastIdx>=0?monthData[lastIdx]:null;
+  const lastPct=lastExp!=null?pct(lastExp,INC):null;
+  const lastSave=lastExp!=null?INC-lastExp:null;
+  const cumExp=monthData.slice(0,passed).reduce((s,v)=>s+v,0);
+  const cumPct=passed>0?pct(cumExp,INC*passed):0;
+  const avg=passed>0?cumExp/passed:0;
+  const fcPct=pct(avg*12,INC*12);
+  const hlType=lastPct==null?'good':lastPct>110?'alert':lastPct>100?'warn':'good';
+  const hlText=lastPct==null?'今月のデータが揃ったら確認しましょう。'
+    :lastPct<=90?`先月は${lastPct}%で収まりました！${yen(lastSave)}の貯蓄です。この調子で。`
+    :lastPct<=100?`先月は${lastPct}%。収入の範囲内に収まりました。${yen(lastSave)}の黒字です。`
+    :lastPct<=110?`先月は${lastPct}%とやや超過。今月で少し調整しましょう。`
+    :`先月は${lastPct}%でした。大きな出費があった月ですね。原因が分かれば次に活かせます。`;
+  const fcType=fcPct>110?'alert':fcPct>100?'warn':'good';
+  const neededCut=Math.max(0,Math.round(avg-INC));
+  const fcText=fcPct<=100
+    ?`このペースなら年間${fcPct}%で着地できます。月平均${yen(Math.round(avg))}のペースです。順調です。`
+    :fcPct<=110
+    ?`このペースだと年間${fcPct}%の見通しです。月に${yen(neededCut)}削減できれば100%以内に着地できます。`
+    :`年間${fcPct}%のペースです。月に${yen(neededCut)}ほど超過しています。グループ別チェックで超過品目を確認して、少しずつ調整しましょう。`;
+
+  // ── 特別費（分類3・4）──
+  const specialItems=items.filter(it=>it.enemy===3||it.enemy===4);
+  const spBYear=specialItems.reduce((s,it)=>s+it.bYear,0);
+  const spAYear=specialItems.reduce((s,it)=>s+it.aYear,0);
+  const spRYear=specialItems.reduce((s,it)=>s+it.rYear,0);
+  const spUsedPct=pct(spAYear,spBYear);
+  const basePct=passed>0?Math.round(passed/12*100):0;
+  const spType=spRYear<0?'alert':spUsedPct>basePct+15?'warn':'good';
+  const spText=spRYear<0
+    ?`ボーナス予算が${yen(Math.abs(spRYear))}超過しています。今後の大きな支出は慎重に判断しましょう。`
+    :spUsedPct>basePct+15
+    ?`消化ペースが基準（${basePct}%）より早めです。残り${yen(spRYear)}の範囲で残りの支出を計画しましょう。`
+    :`残り${yen(spRYear)}の余裕があります（消化率${spUsedPct}%）。計画内のペースです。`;
+
+  return(
+    <div className="view">
+      <div style={{padding:'16px 18px 10px'}}>
+        <div className="mono" style={{fontSize:11,color:'var(--ink-faint)'}}>{t.label}</div>
+        <div className="jp" style={{fontSize:26,fontWeight:600,marginTop:4}}>これまでの状況</div>
+        <div className="jp" style={{fontSize:12,color:'var(--ink-soft)',marginTop:2}}>先月の結果と年間の見通し</div>
+      </div>
+      <div style={{padding:'0 16px 20px'}}>
+
+        {/* ── 毎月費セクション ── */}
+        <div style={{marginBottom:4,padding:'6px 10px',background:'var(--paper-warm)',border:'1px solid var(--line)',borderRadius:5}}>
+          <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>毎月費（分類1・2）　目標：手取りの100%以内　収入：{yen(INC)}/月</span>
+        </div>
+        <div className={`hl hl-${hlType}`} style={{marginTop:8}}><div className="hl-label">先月のひとこと</div><div style={{marginTop:2,wordBreak:'break-all',overflowWrap:'anywhere',whiteSpace:'normal'}}>{hlText}</div></div>
+        <div className="sec">先月の実績（{lastIdx>=0?lastIdx+1:'—'}月）</div>
+        <div className="kpi-grid">
+          <div className={`kpi ${lastPct==null?'':lastPct>100?'kpi-over':lastPct>90?'kpi-warn':'kpi-ok'}`}>
+            <div className="kpi-label">支出率</div>
+            <div className="kpi-value">{lastPct!=null?lastPct+'%':'—'}</div>
+            <div className="kpi-sub">{lastExp!=null?yen(lastExp):'—'}</div>
+          </div>
+          <div className={`kpi ${lastSave==null?'':lastSave<0?'kpi-over':'kpi-ok'}`}>
+            <div className="kpi-label">貯蓄</div>
+            <div className="kpi-value">{lastSave!=null?yen(lastSave):'—'}</div>
+            <div className="kpi-sub">収入{yen(INC)}</div>
+          </div>
+        </div>
+        <div className="sec" style={{marginTop:18}}>年間累計（{passed}ヶ月確定）</div>
+        <div className="kpi-grid">
+          <div className={`kpi ${cumPct>110?'kpi-over':cumPct>100?'kpi-warn':'kpi-ok'}`}>
+            <div className="kpi-label">累計支出率</div>
+            <div className="kpi-value">{passed>0?cumPct+'%':'—'}</div>
+            <div className="kpi-sub">{yen(cumExp)}</div>
+          </div>
+          <div className={`kpi ${fcType==='alert'?'kpi-over':fcType==='warn'?'kpi-warn':'kpi-ok'}`}>
+            <div className="kpi-label">年末着地見込み</div>
+            <div className="kpi-value">{passed>0?fcPct+'%':'—'}</div>
+            <div className="kpi-sub">月平均{yen(Math.round(avg))}</div>
+          </div>
+        </div>
+        {passed>0&&<div className={`hl hl-${fcType}`} style={{marginTop:12}}><div className="hl-label">年末の見通し</div><div style={{marginTop:2,wordBreak:'break-all',overflowWrap:'anywhere',whiteSpace:'normal'}}>{fcText}</div></div>}
+        {passed>0&&(
+          <div style={{marginTop:16}}>
+            <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:6}}>月別支出率の推移（分類1・2）</div>
+            <div style={{display:'flex',gap:3,alignItems:'flex-end',height:52}}>
+              {Array.from({length:passed},(_,i)=>{
+                const p=pct(monthData[i],INC);
+                const h=Math.max(4,Math.min(52,p*0.44));
+                const color=p<=100?'var(--green)':p<=120?'var(--orange)':'var(--red)';
+                return(<div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                  <div className="mono" style={{fontSize:8,color:'var(--ink-faint)'}}>{p}%</div>
+                  <div style={{width:'100%',height:h,background:color,borderRadius:2}}/>
+                  <div className="mono" style={{fontSize:8,color:'var(--ink-faint)'}}>{i+1}月</div>
+                </div>);
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── 特別費セクション ── */}
+        <div style={{marginTop:28,marginBottom:4,padding:'6px 10px',background:'var(--paper-warm)',border:'1px solid var(--line)',borderRadius:5}}>
+          <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>特別費（分類3・4）　ボーナス予算</span>
+        </div>
+        <div className="kpi-grid" style={{marginTop:10}}>
+          <div className="kpi">
+            <div className="kpi-label">年間予算</div>
+            <div className="kpi-value" style={{fontSize:22}}>{yen(spBYear)}</div>
+          </div>
+          <div className={`kpi ${spType==='alert'?'kpi-over':spType==='warn'?'kpi-warn':'kpi-ok'}`}>
+            <div className="kpi-label">年間残り</div>
+            <div className="kpi-value" style={{fontSize:22}}>{spRYear<0?'−¥':'¥'}{Math.abs(Math.round(spRYear)).toLocaleString()}</div>
+            <div className="kpi-sub">実績{yen(spAYear)}　消化{spUsedPct}%</div>
+          </div>
+        </div>
+        {/* 年間消化バー */}
+        <div style={{marginTop:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+            <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>年間消化率</span>
+            <span className="mono" style={{fontSize:10,color:spType==='alert'?'var(--red)':spType==='warn'?'var(--orange)':'var(--ink-faint)'}}>{spUsedPct}%</span>
+          </div>
+          <div className="bar-track">
+            <div className={`bar-fill ${spType==='alert'?'bar-over':spType==='warn'?'bar-warn':'bar-ok'}`} style={{width:`${Math.min(100,spUsedPct)}%`}}/>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+            <span className="mono" style={{fontSize:9,color:'var(--ink-faint)'}}>実績 {yen(spAYear)}</span>
+            <span className="mono" style={{fontSize:9,color:'var(--ink-faint)'}}>残り {yen(Math.max(0,spRYear))}</span>
+          </div>
+        </div>
+        <div className={`hl hl-${spType}`} style={{marginTop:10}}><div className="hl-label">特別費の状況</div><div style={{marginTop:2,wordBreak:'break-all',overflowWrap:'anywhere',whiteSpace:'normal'}}>{spText}</div></div>
+
+      </div>
+    </div>
+  );
+}
+window.ScreenA=ScreenA;
+</script>
+
+<!-- 画面B：グループ別チェック -->
+<script type="text/babel" data-presets="react">
+
+// ── 共通ヘルパー ──────────────────────────────
+function rem(v){return(v<0?'−¥':'¥')+Math.abs(Math.round(v)).toLocaleString();}
+
+// 品目1行（月次用：月平均 vs 計画）
+function MonthItemRow({it,passed}){
+  const{yen}=window.U;
+  const avg=passed>0?Math.round(it.aYear/passed):0;
+  const diff=avg-it.bMonth;
+  const diffPct=it.bMonth>0?Math.round(diff/it.bMonth*100):0;
+  const flag=diffPct>=30?'🚨':diffPct>=10?'⚠️':'';
+  return(
+    <div className="item-row">
+      <div className="item-name jp">{it.name}</div>
+      <div className="item-right">
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {flag&&<span className="item-flag">{flag}</span>}
+          <span className={`item-remain ${diff>0?'item-remain-over':'item-remain-ok'}`}>{diff>0?'+':''}{yen(diff)}/月</span>
+        </div>
+        <span className="item-sub">計画{yen(it.bMonth)} → 実績{yen(avg)}</span>
+      </div>
+    </div>
+  );
+}
+
+// 品目1行（シーズン用：残り表示）
+function SeasonItemRow({it,season}){
+  const{yen,pct}=window.U;
+  const r=season==='summer'?it.rSummer:it.rWinter;
+  const b=season==='summer'?it.bSummer:it.bWinter;
+  const a=season==='summer'?it.aSummer:it.aWinter;
+  const cls=r<0?'item-remain-over':pct(a,b)>80?'item-remain-warn':'item-remain-ok';
+  const flag=r<0?'🚨':pct(a,b)>80?'⚠️':'';
+  return(
+    <div className="item-row">
+      <div className="item-name jp">{it.name}</div>
+      <div className="item-right">
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {flag&&<span className="item-flag">{flag}</span>}
+          <span className={`item-remain ${cls}`}>{rem(r)} 残り</span>
+        </div>
+        <span className="item-sub">予算{yen(b)} 実績{yen(a)}</span>
+      </div>
+    </div>
+  );
+}
+
+// 品目1行（年間用：残り表示）
+function YearItemRow({it,basePct}){
+  const{yen,pct}=window.U;
+  const usedPct=pct(it.aYear,it.bYear);
+  const cls=it.rYear<0?'item-remain-over':usedPct>basePct+15?'item-remain-warn':'item-remain-ok';
+  const flag=it.rYear<0?'🚨':usedPct>basePct+15?'⚠️':'';
+  return(
+    <div className="item-row">
+      <div className="item-name jp">{it.name}</div>
+      <div className="item-right">
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {flag&&<span className="item-flag">{flag}</span>}
+          <span className={`item-remain ${cls}`}>{rem(it.rYear)} 残り</span>
+        </div>
+        <span className="item-sub">予算{yen(it.bYear)} 実績{yen(it.aYear)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── 月次グループカード ────────────────────────
+// keyItem: 判断基準となる品目名（累計超過かどうかで判定）
+// funFilter: ゆとり品目を識別する関数
+function MonthGroupCard({groupName,items,passed,remaining,funFilter,keyItemName}){
+  const{yen}=window.U;
+  const baseItems=funFilter?items.filter(it=>!funFilter(it)):items;
+  const funItems=funFilter?items.filter(it=>funFilter(it)):[];
+
+  // 累計ベースで各品目の過不足を計算
+  // 基礎費累計
+  const baseCumBudget=baseItems.reduce((s,it)=>s+it.bMonth*passed,0);
+  const baseCumActual=baseItems.reduce((s,it)=>s+it.aYear,0);
+  const baseCumOver=baseCumActual-baseCumBudget; // プラスなら超過
+
+  // 月平均
+  const baseBMonth=baseItems.reduce((s,it)=>s+it.bMonth,0);
+  const baseAvg=passed>0?baseCumActual/passed:0;
+  const baseOverPct=baseBMonth>0?Math.round((baseAvg-baseBMonth)/baseBMonth*100):0;
+
+  // 判断基準品目の累計超過チェック
+  const keyItem=keyItemName?baseItems.find(it=>it.name===keyItemName):null;
+  const keyOver=keyItem?keyItem.aYear-(keyItem.bMonth*passed):baseCumOver;
+  const funOK=keyOver<=0; // 判断基準品目が予算内ならゆとりOK
+
+  const funBMonth=funItems.reduce((s,it)=>s+it.bMonth,0);
+  const hasFun=funItems.length>0;
+  const overColor=baseCumOver>0?'var(--red)':'var(--green)';
+
+  // 今月使える目安（累計で判断）
+  const funAvailable=funOK?funBMonth:0;
+
+  // コメント
+  let comment='';
+  if(hasFun&&keyItem){
+    const keyCumBudget=keyItem.bMonth*passed;
+    const keyCumActual=keyItem.aYear;
+    if(funOK){
+      comment=`${keyItem.name}の累計実績（${yen(keyCumActual)}）が累計予算（${yen(keyCumBudget)}）の範囲内です。今月のゆとり費は月予算通り${yen(funBMonth)}使えます。`;
+    } else {
+      comment=`【判断基準】${keyItem.name}の累計実績（${yen(keyCumActual)}）が累計予算（${yen(keyCumBudget)}）を${yen(Math.abs(keyOver))}超過しています。そのため今月のゆとり費は控えめにしましょう。${keyItem.name}が予算内に収まれば来月から通常予算（${yen(funBMonth)}/月）で使えます。`;
+    }
+  } else if(hasFun){
+    // 合計累計で判断するグループ（食費・日用品）
+    const baseLabel=groupName==='食費'
+      ?'スーパー・コンビニ・外食・健康食品の累計合計'
+      :groupName==='日用品'
+      ?'日用品・日用品（子供）の累計合計'
+      :'基礎費の累計';
+    if(funOK){
+      comment=`${baseLabel}（${yen(baseCumActual)}）が累計予算（${yen(baseCumBudget)}）の範囲内です。今月のゆとり費は月予算通り${yen(funBMonth)}使えます。`;
+    } else {
+      comment=`${baseLabel}（${yen(baseCumActual)}）が累計予算（${yen(baseCumBudget)}）を${yen(Math.abs(baseCumOver))}超過しています。今月のゆとり費はお小遣いから使いましょう。累計が予算内に収まれば来月から通常予算（${yen(funBMonth)}/月）で使えます。`;
+    }
+  } else {
+    comment=baseCumOver>0?`月平均が計画より${yen(Math.round(baseAvg-baseBMonth))}（+${baseOverPct}%）多いペースです。今月以降は抑えていきましょう。`:`計画内のペースです。このまま推移すれば年末は計画通りに着地できます。`;
+  }
+
+  return(
+    <div className="gcard">
+      <div className="gcard-head">
+        <div className="gcard-head-row">
+          <div className="gcard-title jp">{groupName}</div>
+          <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',padding:'2px 6px',border:'1px solid var(--line)',borderRadius:4}}>月次管理</div>
+        </div>
+      </div>
+      <div className="gcard-body">
+        {/* 基礎費サマリ（累計） */}
+        <div className="sec" style={{marginTop:0}}>基礎費　1〜{passed}月の累計</div>
+        <div style={{marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>累計予算</span>
+            <span className="mono" style={{fontSize:13}}>{yen(baseCumBudget)}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>累計実績</span>
+            <span className="mono" style={{fontSize:13,color:overColor}}>{yen(baseCumActual)}{baseCumOver!==0&&<span style={{fontSize:10}}> ({baseCumOver>0?'+':''}{baseOverPct}%)</span>}</span>
+          </div>
+        </div>
+        {/* 基礎品目リスト（累計） */}
+        <div className="item-rows" style={{marginBottom:hasFun?14:0}}>
+          {baseItems.map(it=>{
+            const cumB=it.bMonth*passed;
+            const cumA=it.aYear;
+            const diff=cumA-cumB;
+            const diffPct=cumB>0?Math.round(diff/cumB*100):0;
+            const flag=diffPct>=30?'🚨':diffPct>=10?'⚠️':'';
+            const isKey=keyItemName&&it.name===keyItemName;
+            return(
+              <div key={it.key} className="item-row">
+                <div className="item-name jp">{it.name}{isKey&&<span className="mono" style={{fontSize:9,color:'var(--ink-faint)',marginLeft:4}}>★判断基準</span>}</div>
+                <div className="item-right">
+                  <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    {flag&&<span className="item-flag">{flag}</span>}
+                    <span className={`item-remain ${diff>0?'item-remain-over':'item-remain-ok'}`}>{diff>0?'+':''}{yen(diff)}</span>
+                  </div>
+                  <span className="item-sub">累計予算{yen(cumB)} 実績{yen(cumA)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* ゆとり品目セクション */}
+        {hasFun&&(
+          <>
+            <div className="sec">ゆとり費　1〜{passed}月の累計</div>
+            <div className="item-rows" style={{marginBottom:10}}>
+              {funItems.map(it=>{
+                const cumB=it.bMonth*passed;
+                const cumA=it.aYear;
+                const diff=cumA-cumB;
+                const diffPct=cumB>0?Math.round(diff/cumB*100):0;
+                const flag=diffPct>=30?'🚨':diffPct>=10?'⚠️':'';
+                return(
+                  <div key={it.key} className="item-row">
+                    <div className="item-name jp">{it.name}</div>
+                    <div className="item-right">
+                      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                        {flag&&<span className="item-flag">{flag}</span>}
+                        <span className={`item-remain ${diff>0?'item-remain-over':'item-remain-ok'}`}>{diff>0?'+':''}{yen(diff)}</span>
+                      </div>
+                      <span className="item-sub">累計予算{yen(cumB)} 実績{yen(cumA)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 今月使える目安ボックス */}
+            <div style={{background:'var(--paper-warm)',border:`1.5px solid ${funOK?'var(--green)':'var(--red)'}`,borderRadius:6,padding:'10px 12px',marginBottom:10}}>
+              <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:4}}>今月（{passed+1}月）使える目安</div>
+              {funItems.map(it=>(
+                <div key={it.key} style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                  <span className="jp" style={{fontSize:13}}>{it.name}</span>
+                  <span className="mono" style={{fontSize:16,fontWeight:600,color:funOK?'var(--green)':'var(--red)'}}>{yen(funOK?it.bMonth:0)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="gcomment jp">{comment}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── シーズングループカード（夏・冬セクション分け）────────
+// 夏：3〜8月（全6ヶ月）、冬：9〜2月（全6ヶ月）
+function SeasonGroupCard({groupName,items,currentMonth}){
+  const{yen,pct}=window.U;
+  const summerItems=items.filter(it=>it.isSummer);
+  const winterItems=items.filter(it=>it.isWinter);
+  const rSummer=summerItems.reduce((s,it)=>s+it.rSummer,0);
+  const bSummer=summerItems.reduce((s,it)=>s+it.bSummer,0);
+  const aSummer=summerItems.reduce((s,it)=>s+it.aSummer,0);
+  const rWinter=winterItems.reduce((s,it)=>s+it.rWinter,0);
+  const bWinter=winterItems.reduce((s,it)=>s+it.bWinter,0);
+  const aWinter=winterItems.reduce((s,it)=>s+it.aWinter,0);
+
+  // 夏シーズン着地見込み計算
+  // 夏：3〜8月。確定月数＝currentMonth<=2?0:currentMonth<=8?currentMonth-2:6
+  const summerConfirmed=currentMonth<=2?0:currentMonth<=8?currentMonth-2:6;
+  const summerRemainMonths=Math.max(0,6-summerConfirmed); // 残り月数（現在月含む）
+  const summerMonthAvg=summerConfirmed>0?aSummer/summerConfirmed:0;
+  const summerForecast=Math.round(aSummer+summerMonthAvg*summerRemainMonths);
+  const summerFcOver=summerForecast>bSummer;
+  // 今月以降に月いくらに抑えると着地できるか
+  const summerMonthTarget=summerRemainMonths>0?Math.round(rSummer/summerRemainMonths):0;
+
+  // 冬シーズン着地見込み計算
+  // 冬：9〜2月。確定月数＝currentMonth>=9?currentMonth-8:currentMonth<=2?currentMonth+4:0
+  const winterConfirmed=currentMonth>=9?currentMonth-8:currentMonth<=2?currentMonth+4:0;
+  const winterRemainMonths=Math.max(0,6-winterConfirmed);
+  const winterMonthAvg=winterConfirmed>0?aWinter/winterConfirmed:0;
+  const winterForecast=Math.round(aWinter+winterMonthAvg*winterRemainMonths);
+  const winterFcOver=winterForecast>bWinter;
+  const winterMonthTarget=winterRemainMonths>0?Math.round(rWinter/winterRemainMonths):0;
+
+  // シーズン別コメント
+  function seasonComment(items,r,fcOver,forecast,budget,monthTarget,remainMonths,overNames){
+    if(r<0) return `グループ全体が予算を${yen(Math.abs(r))}超過しています。今後の購入は慎重に判断しましょう。`;
+    if(fcOver) return `このペースだと着地見込みは${yen(forecast)}となり予算${yen(budget)}を超える可能性があります。今月以降は月${yen(monthTarget)}以内に抑えると予算内に着地できます。`;
+    if(overNames.length>0) return `${overNames.join('・')}が個別で超過していますが、グループ全体では${yen(r)}の余裕があります。家族内で補完OK。`;
+    return `グループ全体で${yen(r)}の余裕があります。家族内で補完OK。`;
+  }
+
+  const summerOverNames=summerItems.filter(it=>it.rSummer<0).map(it=>it.name);
+  const winterOverNames=winterItems.filter(it=>it.rWinter<0).map(it=>it.name);
+  const summerComment=seasonComment(summerItems,rSummer,summerFcOver,summerForecast,bSummer,summerMonthTarget,summerRemainMonths,summerOverNames);
+  const winterComment=seasonComment(winterItems,rWinter,winterFcOver,winterForecast,bWinter,winterMonthTarget,winterRemainMonths,winterOverNames);
+
+  // 消化率バー
+  function UsedBar({actual,budget}){
+    const u=pct(actual,budget);
+    const cls=u>100?'bar-over':u>70?'bar-warn':'bar-ok';
+    return(
+      <div style={{marginBottom:8}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+          <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>消化率</span>
+          <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>{u}%</span>
+        </div>
+        <div className="bar-track"><div className={`bar-fill ${cls}`} style={{width:`${Math.min(100,u)}%`}}/></div>
+      </div>
+    );
+  }
+
+  return(
+    <div className="gcard">
+      <div className="gcard-head">
+        <div className="gcard-head-row">
+          <div className="gcard-title jp">{groupName}</div>
+          <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',padding:'2px 6px',border:'1px solid var(--line)',borderRadius:4}}>シーズン管理</div>
+        </div>
+      </div>
+      <div className="gcard-body">
+        {/* 夏セクション */}
+        {summerItems.length>0&&(
+          <>
+            <div className="sec" style={{marginTop:0}}>夏シーズン（3〜8月）</div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ予算</span>
+              <span className="mono" style={{fontSize:13}}>{yen(bSummer)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ実績</span>
+              <span className="mono" style={{fontSize:13}}>{yen(aSummer)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ残り</span>
+              <span className="mono" style={{fontSize:13,fontWeight:600,color:rSummer<0?'var(--red)':'var(--green)'}}>{rem(rSummer)}</span>
+            </div>
+            <UsedBar actual={aSummer} budget={bSummer}/>
+            {summerConfirmed>0&&(
+              <div style={{marginBottom:8,padding:'6px 8px',background:'var(--paper-warm)',borderRadius:4}}>
+                <span className="mono" style={{fontSize:10,color:summerFcOver?'var(--red)':'var(--ink-faint)'}}>
+                  着地見込み {yen(summerForecast)}
+                  {summerFcOver?` 🚨 超過の見込み。月${yen(summerMonthTarget)}以内に抑えると予算内に着地できます。`:` ✅ 予算内に着地できそうです。`}
+                </span>
+              </div>
+            )}
+            <div className="item-rows">
+              {summerItems.map(it=><SeasonItemRow key={it.key+'_s'} it={it} season="summer"/>)}
+            </div>
+            <div className="gcomment jp" style={{marginTop:8}}>{summerComment}</div>
+          </>
+        )}
+        {/* 冬セクション */}
+        {winterItems.length>0&&(
+          <>
+            <div className="sec">冬シーズン（9〜2月）</div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ予算</span>
+              <span className="mono" style={{fontSize:13}}>{yen(bWinter)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ実績</span>
+              <span className="mono" style={{fontSize:13}}>{yen(aWinter)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+              <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>グループ残り</span>
+              <span className="mono" style={{fontSize:13,fontWeight:600,color:rWinter<0?'var(--red)':'var(--green)'}}>{rem(rWinter)}</span>
+            </div>
+            <UsedBar actual={aWinter} budget={bWinter}/>
+            {winterConfirmed>0&&(
+              <div style={{marginBottom:8,padding:'6px 8px',background:'var(--paper-warm)',borderRadius:4}}>
+                <span className="mono" style={{fontSize:10,color:winterFcOver?'var(--red)':'var(--ink-faint)'}}>
+                  着地見込み {yen(winterForecast)}
+                  {winterFcOver?` 🚨 超過の見込み。月${yen(winterMonthTarget)}以内に抑えると予算内に着地できます。`:` ✅ 予算内に着地できそうです。`}
+                </span>
+              </div>
+            )}
+            <div className="item-rows">
+              {winterItems.map(it=><SeasonItemRow key={it.key+'_w'} it={it} season="winter"/>)}
+            </div>
+            <div className="gcomment jp" style={{marginTop:8}}>{winterComment}</div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 年間グループカード ────────────────────────
+function YearGroupCard({groupName,items,passed}){
+  const{yen,pct}=window.U;
+  const basePct=passed>0?Math.round(passed/12*100):0;
+  const bYear=items.reduce((s,it)=>s+it.bYear,0);
+  const aYear=items.reduce((s,it)=>s+it.aYear,0);
+  const rYear=items.reduce((s,it)=>s+it.rYear,0);
+  const usedPct=pct(aYear,bYear);
+  const overItems=items.filter(it=>it.rYear<0);
+  const barCls=usedPct>100?'bar-over':usedPct>basePct+15?'bar-warn':'bar-ok';
+  const comment=rYear<0
+    ?`グループ全体が年間予算を${yen(Math.abs(rYear))}超過しています。追加の支出は慎重に。超過品目：${overItems.map(it=>it.name).join('・')}`
+    :usedPct>basePct+15
+    ?`消化率が基準（${basePct}%）より早めです。残り${yen(rYear)}の範囲内で進めましょう。品目をまたいで帳尻が合えばOKです。`
+    :`グループ全体で${yen(rYear)}の余裕があります（消化率${usedPct}%）。品目をまたいで帳尻が合えばOKです。`;
+  return(
+    <div className="gcard">
+      <div className="gcard-head">
+        <div className="gcard-head-row">
+          <div className="gcard-title jp">{groupName}</div>
+          <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',padding:'2px 6px',border:'1px solid var(--line)',borderRadius:4}}>年間管理</div>
+        </div>
+      </div>
+      <div className="gcard-body">
+        <div style={{marginBottom:6}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>年間予算</span>
+            <span className="mono" style={{fontSize:13}}>{yen(bYear)}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>年間実績</span>
+            <span className="mono" style={{fontSize:13}}>{yen(aYear)}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+            <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>年間残り</span>
+            <span className="mono" style={{fontSize:13,fontWeight:600,color:rYear<0?'var(--red)':'var(--green)'}}>{rem(rYear)}</span>
+          </div>
+          {/* 消化率バー */}
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>消化率</span>
+            <span className="mono" style={{fontSize:10,color:usedPct>basePct+15?'var(--orange)':'var(--ink-faint)'}}>{usedPct}%<span style={{color:'var(--ink-faint)'}}> （基準{basePct}%）</span></span>
+          </div>
+          <div className="bar-track"><div className={`bar-fill ${barCls}`} style={{width:`${Math.min(100,usedPct)}%`}}/></div>
+        </div>
+        <div className="item-rows">
+          {items.map(it=><YearItemRow key={it.key} it={it} basePct={basePct}/>)}
+        </div>
+        <div className="gcomment jp">{comment}</div>
+      </div>
+    </div>
+  );
+}
+
+// ゆとり品目判定
+function isFoodFun(it){return['ごちそう','スペシャルデート'].some(n=>it.name.includes(n));}
+function isDailyFun(it){return it.name.includes('ゆとり');}
+
+// グループ管理モード判定
+function groupMode(its){
+  if(its.some(it=>it.isMon))return'month';
+  if(its.some(it=>it.isSummer||it.isWinter))return'season';
+  return'year';
+}
+
+function ScreenB({items}){
+  const t=window.U.today();
+  const passed=t.month-1;
+  const remaining=12-passed;
+  window.today_passed=passed;
+
+  const groupedItems=items.filter(it=>it.group);
+  const groupNames=[];
+  groupedItems.forEach(it=>{if(!groupNames.includes(it.group))groupNames.push(it.group);});
+
+  return(
+    <div className="view">
+      <div style={{padding:'16px 18px 10px'}}>
+        <div className="mono" style={{fontSize:11,color:'var(--ink-faint)'}}>{t.label}</div>
+        <div className="jp" style={{fontSize:26,fontWeight:600,marginTop:4}}>グループ別チェック</div>
+        <div className="jp" style={{fontSize:12,color:'var(--ink-soft)',marginTop:2}}>グループ内で帳尻が合えばOK</div>
+      </div>
+      <div style={{padding:'0 16px 40px'}}>
+        {groupNames.map(gname=>{
+          const its=groupedItems.filter(it=>it.group===gname);
+          const mode=groupMode(its);
+          if(mode==='season'){
+            return <SeasonGroupCard key={gname} groupName={gname} items={its} currentMonth={t.month}/>;
+          }
+          if(mode==='year'){
+            return <YearGroupCard key={gname} groupName={gname} items={its} passed={passed}/>;
+          }
+          // month — 食費は基礎食費合計、日用品は日用品+日用品_子供の合計が判断基準
+          const funFilter=gname==='食費'?isFoodFun:gname==='日用品'?isDailyFun:null;
+          const keyItemName=null; // 個別品目でなく基礎費の合計累計で判断
+          return <MonthGroupCard key={gname} groupName={gname} items={its} passed={passed} remaining={remaining} funFilter={funFilter} keyItemName={keyItemName}/>;
+        })}
+      </div>
+    </div>
+  );
+}
+window.ScreenB=ScreenB;
+</script>
+
+<!-- 画面C：品目詳細 -->
+<script type="text/babel" data-presets="react">
+function devFlag(ratio){if(ratio>=0.7)return'🚨';if(ratio>=0.1)return'⚠️';return'';}
+
+function ScreenC({items}){
+  const[tab,setTab]=React.useState('month');
+  const t=window.U.today();
+  const{yen,pct}=window.U;
+  const passed=t.month-1;
+  const remaining=12-passed;
+  const basePct=passed>0?Math.round(passed/12*100):0;
+  const monthItems=items.filter(it=>it.isMon);
+  const yearItems=items.filter(it=>it.isYear||it.isMon);
+
+  function groupByCat(list){const m=new Map();list.forEach(it=>{if(!m.has(it.cat))m.set(it.cat,[]);m.get(it.cat).push(it);});return Array.from(m.entries());}
+  function monthTarget(it){if(remaining<=0||it.bYear<=0)return null;return Math.round((it.bYear-it.aYear)/remaining);}
+  function monthFlag(tgt,bMonth){if(tgt==null||bMonth<=0)return'';return devFlag((bMonth-tgt)/bMonth);}
+  function yearFlag(it){
+    if(it.bYear<=0)return'';
+    if(it.aYear===0)return'';
+    if(it.rYear<0)return'🚨';
+    if(it.rYear===0)return'✅';
+    const dev=pct(it.aYear,it.bYear)-basePct;
+    if(dev>=15)return'⚠️';
+    return'';
+  }
+
+  const overItems=monthItems.filter(it=>{if(passed<=0||it.bMonth<=0)return false;return it.aYear/passed>it.bMonth*1.1;});
+  const monthType=overItems.length>2?'alert':overItems.length>0?'warn':'good';
+  const overNames=overItems.map(it=>it.name.replace(/[②③④]/g,'').trim());
+  const monthComment=overItems.length===0?`全品目が概ね計画のペースです。今月からの目標額の範囲で今月も動けば、年末は計画通りに着地できます。`:overItems.length===1?`${overNames[0]}が計画より多めのペースです。「今月からの目標額」を意識するだけで、年末までに軌道修正できます。`:`${overNames.join('・')}が計画より多めのペースです。それぞれの今月からの目標額を今月の上限の目安にして、年末着地を目指しましょう。一気に減らそうとせず、毎月少しずつ戻すのがコツです。`;
+
+  const dangerItems=yearItems.filter(it=>it.rYear<0);
+  const warnItems=yearItems.filter(it=>it.rYear>=0&&pct(it.aYear,it.bYear)>basePct+15);
+  const yearType=dangerItems.length>0?'alert':warnItems.length>0?'warn':'good';
+  const dangerNames=dangerItems.map(it=>it.name.replace(/[②③④]/g,'').trim());
+  const warnNames=warnItems.map(it=>it.name.replace(/[②③④]/g,'').trim());
+  const yearComment=dangerItems.length>0?`${dangerNames.join('・')}が年間予算を超えています。残り${remaining}ヶ月でこれ以上増やさないことが最優先です。`:warnItems.length>0?`${warnNames.join('・')}の消化が基準より早めです。残り${remaining}ヶ月、ペースを上げなければ年末には計画内に収まります。`:`すべての品目が基準消化率（${basePct}%）の範囲内で推移しています。このペースなら年末は計画通りに着地できます。`;
+
+  return(
+    <div className="view">
+      <div style={{padding:'16px 18px 10px'}}>
+        <div className="mono" style={{fontSize:11,color:'var(--ink-faint)'}}>{t.label}</div>
+        <div className="jp" style={{fontSize:26,fontWeight:600,marginTop:4}}>品目詳細</div>
+        <div className="jp" style={{fontSize:12,color:'var(--ink-soft)',marginTop:2}}>月次・年次で深く見る</div>
+      </div>
+      <div style={{padding:'0 16px 40px'}}>
+        <div className="tab-inner">
+          <div className={`tab-item${tab==='month'?' tab-active':''}`} onClick={()=>setTab('month')}>月予算チェック</div>
+          <div className={`tab-item${tab==='year'?' tab-active':''}`} onClick={()=>setTab('year')}>年間残り予算</div>
+        </div>
+        {tab==='month'&&(
+          <>
+            <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:10,lineHeight:1.6}}>
+              月予算=年予算÷12　月平均実績=年実績÷{passed}ヶ月　今月からの目標額=年残り÷残り{remaining}ヶ月<br/>
+              フラグ：🚨 今月からの目標額が計画の70%未満　⚠️ 70〜90%未満
+            </div>
+            <table className="itable">
+              <thead><tr><th>品目</th><th className="r">月予算</th><th className="r">月平均実績</th><th className="r">今月からの目標額</th><th className="r"></th></tr></thead>
+              <tbody>
+                {groupByCat(monthItems).map(([cat,catItems])=>(
+                  <React.Fragment key={cat}>
+                    <tr className="cat-row"><td colSpan={5}>{cat}</td></tr>
+                    {catItems.map(it=>{
+                      const avg=passed>0?Math.round(it.aYear/passed):0;
+                      const tgt=monthTarget(it);
+                      const diff=avg-it.bMonth;
+                      const diffPct=it.bMonth>0?Math.round(diff/it.bMonth*100):0;
+                      const f=monthFlag(tgt,it.bMonth);
+                      const avgColor=diff>0?'var(--red)':diff<-1000?'var(--green)':'var(--ink)';
+                      return(
+                        <tr key={it.key}>
+                          <td className="jp">{it.name.replace(/[②③④]/g,'').trim()}</td>
+                          <td className="r">{yen(it.bMonth)}</td>
+                          <td className="r" style={{color:avgColor}}>{yen(avg)}{diff!==0&&<div style={{fontSize:9,color:avgColor}}>{diff>0?'+':''}{diffPct}%</div>}</td>
+                          <td className="r" style={{color:tgt!=null&&tgt<it.bMonth*0.7?'var(--red)':tgt!=null&&tgt<it.bMonth*0.9?'var(--orange)':'var(--ink)'}}>{tgt!=null?yen(tgt):'—'}</td>
+                          <td className="r" style={{fontSize:14}}>{f}</td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+            <div className={`summary summary-${monthType}`}><div className="summary-title">月予算チェック 総評</div>{monthComment}</div>
+          </>
+        )}
+        {tab==='year'&&(
+          <>
+            <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:10,lineHeight:1.6}}>
+              基準消化率{basePct}%（{passed}ヶ月÷12）との比較<br/>
+              ✅ 予算を使い切った　⚠️ 消化ペースが基準より早い　🚨 予算超過
+            </div>
+            <table className="itable">
+              <thead><tr><th>品目</th><th className="r">年予算</th><th className="r">年実績</th><th className="r">年残り</th><th className="r"></th></tr></thead>
+              <tbody>
+                {groupByCat(yearItems).map(([cat,catItems])=>(
+                  <React.Fragment key={cat}>
+                    <tr className="cat-row"><td colSpan={5}>{cat}</td></tr>
+                    {catItems.map(it=>{
+                      const aPct=pct(it.aYear,it.bYear);
+                      const dev=aPct-basePct;
+                      const f=yearFlag(it);
+                      const rColor=it.rYear<0?'var(--red)':dev>15?'var(--orange)':'var(--ink)';
+                      return(
+                        <tr key={it.key}>
+                          <td className="jp">{it.name.replace(/[②③④]/g,'').trim()}</td>
+                          <td className="r">{yen(it.bYear)}</td>
+                          <td className="r">{yen(it.aYear)}{it.bYear>0&&<div style={{fontSize:9,color:dev>15?'var(--red)':dev>0?'var(--orange)':'var(--ink-faint)'}}>{aPct}%消化</div>}</td>
+                          <td className="r" style={{color:rColor,fontWeight:it.rYear<0?700:400}}>{it.rYear<0?'−¥':'¥'}{Math.abs(Math.round(it.rYear)).toLocaleString()}</td>
+                          <td className="r" style={{fontSize:14}}>{f}</td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+            <div className={`summary summary-${yearType}`}><div className="summary-title">年間残り予算 総評</div>{yearComment}</div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+window.ScreenC=ScreenC;
+</script>
+
+<!-- 画面D：ステージ判定 -->
+<script type="text/babel" data-presets="react">
+
+// ① ステップ定義を一元管理（マジックナンバーはここだけ）
+const STEPS = [
+  { step:1, pct:100, title:'赤字にしない'                    },
+  { step:2, pct: 95, title:'支出を下げはじめる'              },
+  { step:3, pct: 88, title:'定期特別費も手取り収入内に納める' },
+  { step:4, pct: 79, title:'すべての支出を手取り収入内に納める' },
+];
+const GOAL_DEF = { step:'GOAL', pct:80, title:'資産形成を加速する' };
+
+// STEPSから現在のステージを判定（数値の直書きなし）
+function getCurrentStep(avgPct) {
+  for (let i = STEPS.length - 1; i >= 0; i--) {
+    if (avgPct <= STEPS[i].pct) return STEPS[i].step;
+  }
+  return 0;
+}
+
+// 次に目指す2ステップを取得
+function getNextSteps(currentStep, avgExp12) {
+  const INC = window.MONTHLY_INCOME;
+  const higher = STEPS.filter(s => s.step > currentStep);
+  const result = higher.slice(0, 2).map(s => ({
+    ...s, target: Math.round(INC * s.pct / 100),
+    gap: Math.max(0, Math.round(avgExp12 - Math.round(INC * s.pct / 100))),
+  }));
+  // STEP3以上で2件に満たない場合はGOALを追加
+  if (currentStep >= 3 && result.length < 2) {
+    const goalTarget = Math.round(INC * GOAL_DEF.pct / 100);
+    result.push({ ...GOAL_DEF, target: goalTarget, gap: Math.max(0, Math.round(avgExp12 - goalTarget)) });
+  }
+  return result;
+}
+
+// ② 計算ロジックをコンポーネントから分離
+function calcStageData(items, totals) {
+  const INC = window.MONTHLY_INCOME;
+  const t = window.U.today();
+  const passed = t.month - 1;
+  if (passed === 0) return null; // エッジケースはここ1箇所で処理
+
+  const monthData = totals.month12;
+  const cumExp12  = monthData.slice(0, passed).reduce((s, v) => s + v, 0);
+  const avgExp12  = cumExp12 / passed;
+  const avgPct    = Math.round(avgExp12 / INC * 100);
+
+  const cumE1  = totals.month1.slice(0, passed).reduce((s, v) => s + v, 0);
+  const cumE2  = totals.month2.slice(0, passed).reduce((s, v) => s + v, 0);
+  const avgE1  = Math.round(cumE1 / passed);
+  const avgE2  = Math.round(cumE2 / passed);
+
+  const step           = getCurrentStep(avgPct);
+  const currentStepDef = STEPS.find(s => s.step === step) || null;
+  // ③ 直近3ヶ月の基準も現在のSTEPから動的に取得
+  const currentLimit   = currentStepDef ? Math.round(INC * currentStepDef.pct / 100) : INC;
+
+  const recent3 = [];
+  for (let i = Math.max(0, passed - 3); i < passed; i++) {
+    recent3.push({
+      month: i + 1,
+      amount: monthData[i],
+      pct: Math.round(monthData[i] / INC * 100),
+      ok: monthData[i] <= currentLimit,
+    });
+  }
+
+  const nextSteps = getNextSteps(step, avgExp12);
+
+  // ドーナツ用品目
+  const donutGroups = [
+    { label:'敵①（固定費）',   note:'月予算ベース',           items: items.filter(it => it.enemy === 1 && it.bMonth > 0), budgetKey:'bMonth' },
+    { label:'敵②（変動費）',   note:'月予算ベース 削減ターゲット', items: items.filter(it => it.enemy === 2 && it.bMonth > 0), budgetKey:'bMonth' },
+    { label:'敵③（不定期固定）', note:'年予算ベース',          items: items.filter(it => it.enemy === 3 && it.bYear  > 0), budgetKey:'bYear'  },
+    { label:'敵④（不定期変動）', note:'年予算ベース',          items: items.filter(it => it.enemy === 4 && it.bYear  > 0), budgetKey:'bYear'  },
+  ];
+
+  return { passed, avgExp12: Math.round(avgExp12), avgPct, avgE1, avgE2, step, currentStepDef, currentLimit, recent3, nextSteps, donutGroups };
+}
+
+// ── サブコンポーネント ──────────────────────────────
+
+function CurrentStepCard({ stepDef, avgPct }) {
+  const { yen } = window.U;
+  const INC = window.MONTHLY_INCOME;
+  if (!stepDef) return (
+    <div className="current-step-card">
+      <div className="current-step-num mono">ステージ 0</div>
+      <div className="current-step-title jp">まず赤字を止める</div>
+      <div className="current-step-desc jp">支出が収入を超えている状態です。まず赤字にしないことを最優先に。</div>
+    </div>
+  );
+  const limit = yen(Math.round(INC * stepDef.pct / 100));
+  return (
+    <div className="current-step-card">
+      <div className="current-step-num mono">ステージ {stepDef.step}</div>
+      <div className="current-step-title jp">{stepDef.title}</div>
+      <div className="current-step-desc jp">{stepDef.desc}</div>
+      <div className="current-step-desc jp" style={{marginTop:8,fontWeight:600}}>
+        目標：{stepDef.target} を月{limit}（手取り{stepDef.pct}%）以内に抑える
+      </div>
+    </div>
+  );
+}
+
+function StageGuide({ currentStep, nextSteps }) {
+  const { yen } = window.U;
+  const INC = window.MONTHLY_INCOME;
+  const allRows = [...STEPS, GOAL_DEF];
+  // step===0（未達）のときはステージ1を現在地として扱う
+  const effectiveActive = currentStep === 0 ? 1 : currentStep;
+  const gap0 = nextSteps && nextSteps[0];
+
+  function MathBreakdown({ s }) {
+    const rem = 100 - s.pct;
+    const remLabel = s.step === 3 ? '③ 定期特別費' : '③④ 特別費すべて';
+    return (
+      <div style={{background:'var(--paper-warm)',borderRadius:6,padding:'8px 10px',marginTop:8,fontFamily:'var(--font-mono)',fontSize:11,color:'var(--ink-soft)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+          <span>①＋②</span><span>{s.pct}%　{yen(Math.round(INC*s.pct/100))}</span>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',paddingBottom:5,borderBottom:'1px solid var(--line)'}}>
+          <span>{remLabel}</span><span>{rem}%　{yen(Math.round(INC*rem/100))}</span>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:5,fontWeight:600,color:'var(--ink)'}}>
+          <span>合計</span><span>100%　{yen(INC)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{position:'relative'}}>
+      <div style={{position:'absolute',left:12,top:26,bottom:26,width:'0.5px',background:'var(--line)',zIndex:0}}/>
+      {allRows.map(s => {
+        const isActive = s.step === effectiveActive;
+        const isDone   = typeof s.step === 'number' && currentStep > 0 && s.step < currentStep;
+        const isGoal   = s.step === 'GOAL';
+        const hasMath  = s.step === 3 || s.step === 4;
+        const limit    = Math.round(INC * s.pct / 100);
+        // ドット
+        const dotBg    = isDone ? 'var(--green)' : isActive ? 'var(--ink)' : 'var(--paper)';
+        const dotBdr   = isDone || isActive ? 'none' : '1px solid var(--line)';
+        const dotTxt   = isDone ? '✓' : isGoal ? '★' : String(s.step);
+        const dotColor = isDone || isActive ? 'var(--paper)' : 'var(--ink-faint)';
+
+        return (
+          <div key={String(s.step)} style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:16}}>
+            <div style={{flexShrink:0,width:26,height:26,borderRadius:'50%',background:dotBg,border:dotBdr,display:'flex',alignItems:'center',justifyContent:'center',position:'relative',zIndex:1}}>
+              <span style={{fontSize:11,fontWeight:600,fontFamily:'var(--font-mono)',color:dotColor}}>{dotTxt}</span>
+            </div>
+
+            {isActive ? (
+              <div style={{flex:1,border:'2px solid var(--ink)',borderRadius:8,padding:'12px 14px',background:'var(--paper)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                  <div>
+                    <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--ink-faint)',marginBottom:2}}>
+                      {isGoal ? 'GOAL' : `ステージ ${s.step}`}
+                    </div>
+                    <div className="jp" style={{fontSize:14,fontWeight:600}}>{s.title}</div>
+                  </div>
+                  <span className="badge badge-warn" style={{marginLeft:8,flexShrink:0,fontSize:9}}>いまここ</span>
+                </div>
+                <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom: hasMath ? 0 : 4}}>
+                  <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--ink-faint)',flexShrink:0}}>クリア条件</span>
+                  <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>①＋②を {s.pct}%以内（{yen(limit)}）に</span>
+                </div>
+                {hasMath && <MathBreakdown s={s}/>}
+                {gap0 && gap0.gap > 0 && (
+                  <div className="jp" style={{borderTop:'1px solid var(--line)',marginTop:10,paddingTop:10,fontSize:12,color:'var(--green)'}}>
+                    → あと {yen(gap0.gap)} 削減でステージ{gap0.step}へ
+                  </div>
+                )}
+                {gap0 && gap0.gap === 0 && (
+                  <div className="jp" style={{borderTop:'1px solid var(--line)',marginTop:10,paddingTop:10,fontSize:12,color:'var(--green)'}}>
+                    ✅ クリア条件達成中　次のステージへ移行できます
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{flex:1,paddingTop:3,opacity:isDone?0.55:1}}>
+                <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--ink-faint)',marginBottom:2}}>
+                  {isGoal ? 'GOAL' : `ステージ ${s.step}`}
+                </div>
+                <div className="jp" style={{fontSize:13,fontWeight:600,marginBottom:4}}>{s.title}</div>
+                <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom: hasMath ? 6 : 0}}>
+                  <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--ink-faint)',flexShrink:0}}>クリア条件</span>
+                  <span className="jp" style={{fontSize:12,color:'var(--ink-soft)'}}>①＋②を {s.pct}%以内（{yen(limit)}）に</span>
+                </div>
+                {hasMath && <MathBreakdown s={s}/>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExpenseRateBlock({ avgE1, avgE2, avgPct, step }) {
+  const { yen } = window.U;
+  const INC = window.MONTHLY_INCOME;
+  const total  = avgE1 + avgE2;
+  const pct1   = Math.round(avgE1 / INC * 100);
+  const pct2   = Math.round(avgE2 / INC * 100);
+  const label  = step === 0 ? 'ステージ1未達' : `ステージ${step}圏内`;
+  const bdgCls = step >= 3 ? 'badge-ok' : step >= 1 ? 'badge-warn' : 'badge-over';
+  return (
+    <div style={{border:'1.5px solid var(--ink)',borderRadius:8,padding:14,marginBottom:14,background:'var(--paper)'}}>
+      {[['敵①（固定費）', avgE1, pct1], ['敵②（変動費）', avgE2, pct2]].map(([lbl, amt, p], i) => (
+        <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--line)'}}>
+          <span className="jp" style={{fontSize:13,color:'var(--ink-soft)'}}>{lbl}</span>
+          <span className="mono" style={{fontSize:13}}>{yen(amt)}<span style={{color:'var(--ink-faint)',marginLeft:6}}>{p}%</span></span>
+        </div>
+      ))}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 2px',alignItems:'center'}}>
+        <span className="jp" style={{fontSize:13,fontWeight:600}}>合計</span>
+        <span>
+          <span className="mono" style={{fontSize:16,fontWeight:600}}>{yen(total)}</span>
+          <span className="mono" style={{fontSize:12,marginLeft:6}}>{avgPct}%</span>
+          <span className={`badge ${bdgCls}`} style={{marginLeft:8}}>{label}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function NextStepGapBlock({ nextSteps, avgPct }) {
+  const { yen } = window.U;
+  return (
+    <>
+      {nextSteps.map(s => {
+        const over = avgPct > s.pct;
+        const barColor = over ? 'var(--red)' : 'var(--green)';
+        const hint = s.step <= 2 ? '敵②（変動費）の見直しで届きます'
+          : s.step === 3 ? '敵②の継続的な見直しが必要です'
+          : '敵①②の抜本的な見直しが必要です';
+        return (
+          <div key={s.step} className="next-step-box">
+            <div className="next-step-label jp">ステージ{s.step} まであと</div>
+            <div style={{marginBottom:4}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>現在</span>
+                <span className="mono" style={{fontSize:10,color:over?'var(--red)':'var(--ink-faint)'}}>{avgPct}%</span>
+              </div>
+              <div className="bar-track"><div className="bar-fill" style={{width:`${Math.min(100,avgPct)}%`,background:barColor}}/></div>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,marginTop:8}}>
+                <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>目標</span>
+                <span className="mono" style={{fontSize:10,color:'var(--ink-faint)'}}>{s.pct}%</span>
+              </div>
+              <div className="bar-track"><div className="bar-fill bar-ok" style={{width:`${s.pct}%`}}/></div>
+            </div>
+            {s.gap > 0
+              ? <><div className="next-step-gap mono">月に {yen(s.gap)} 削減が必要</div><div className="next-step-hint jp">{hint}</div></>
+              : <div className="next-step-gap" style={{color:'var(--green)'}}>✅ 達成中</div>
+            }
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function RecentMonthsBlock({ recent3, currentStepDef, currentLimit }) {
+  const { yen } = window.U;
+  if (recent3.length === 0) return (
+    <div className="jp" style={{fontSize:12,color:'var(--ink-faint)',padding:'8px 0'}}>まだデータがありません</div>
+  );
+  const allOk  = recent3.length >= 3 && recent3.every(m => m.ok);
+  const sLabel = currentStepDef ? `ステージ${currentStepDef.step}` : 'ステージ1';
+  const pLabel = currentStepDef ? `${currentStepDef.pct}%` : '100%';
+  return (
+    <>
+      <div className="mono" style={{fontSize:10,color:'var(--ink-faint)',marginBottom:10}}>
+        {sLabel} 基準：{pLabel}以内（{yen(currentLimit)}以内）
+      </div>
+      {recent3.map((m, i) => (
+        <div key={m.month} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
+          <span className="jp" style={{fontSize:13,color:'var(--ink-soft)',minWidth:30}}>{m.month}月</span>
+          <span className="mono" style={{fontSize:13,flex:1,textAlign:'right',paddingRight:8}}>{yen(m.amount)}</span>
+          <span className="mono" style={{fontSize:12,color:'var(--ink-faint)',minWidth:36,textAlign:'right'}}>{m.pct}%</span>
+          <span style={{fontSize:14,marginLeft:8}}>{m.ok ? '✅' : '❌'}</span>
+          {i === recent3.length - 1 && <span className="jp" style={{fontSize:9,color:'var(--ink-faint)',marginLeft:6,whiteSpace:'nowrap'}}>← 先月</span>}
+        </div>
+      ))}
+      {allOk && <div className="hl hl-good" style={{marginTop:10}}>3ヶ月連続達成！次のステージ移行を検討しましょう。</div>}
+    </>
+  );
+}
+
+// ドーナツチャート（SVG、ライブラリ不要）
+const DONUT_COLORS = ['#4f8a6a','#c98a3f','#5b7fa6','#9b6b9b','#b85b4a','#6a8a5b','#a68a4f','#5b8a8a'];
+
+function DonutChart({ segments }) {
+  const R = 35, C = 2 * Math.PI * R;
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  let offset = 0;
+  return (
+    <svg viewBox="0 0 100 100" style={{width:'100%',maxWidth:110,display:'block',margin:'0 auto'}}>
+      {total === 0
+        ? <circle cx="50" cy="50" r={R} fill="none" stroke="var(--line)" strokeWidth="20"/>
+        : segments.map((seg, i) => {
+            const dash = (seg.value / total) * C;
+            const el = (
+              <circle key={i} cx="50" cy="50" r={R} fill="none"
+                stroke={seg.color} strokeWidth="20"
+                strokeDasharray={`${dash} ${C - dash}`}
+                strokeDashoffset={-offset + C * 0.25}/>
+            );
+            offset += dash;
+            return el;
+          })
+      }
+    </svg>
+  );
+}
+
+function DonutCard({ label, note, items, budgetKey }) {
+  const { yen } = window.U;
+  const sorted   = [...items].sort((a, b) => b[budgetKey] - a[budgetKey]);
+  const top5     = sorted.slice(0, 5);
+  const restAmt  = sorted.slice(5).reduce((s, it) => s + it[budgetKey], 0);
+  const total    = items.reduce((s, it) => s + it[budgetKey], 0);
+  const segments = top5.map((it, i) => ({ name: it.name, value: it[budgetKey], color: DONUT_COLORS[i] }));
+  if (restAmt > 0) segments.push({ name:'その他', value: restAmt, color:'#c8c4b8' });
+  return (
+    <div className="donut-card">
+      <div className="donut-label jp">{label}</div>
+      <div className="mono" style={{fontSize:9,color:'var(--ink-faint)',marginBottom:6}}>{note}</div>
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+        <div style={{flex:'0 0 52%'}}>
+          <DonutChart segments={segments}/>
+        </div>
+        <div style={{flex:1,textAlign:'center'}}>
+          <div className="mono" style={{fontSize:15,fontWeight:600,lineHeight:1.2}}>{yen(total)}</div>
+          <div className="jp" style={{fontSize:10,color:'var(--ink-faint)',marginTop:3}}>合計</div>
+        </div>
+      </div>
+      <div className="donut-legend">
+        {segments.map((seg, i) => {
+          const p = total > 0 ? Math.round(seg.value / total * 100) : 0;
+          return (
+            <div key={i} className="donut-legend-item">
+              <span style={{display:'flex',alignItems:'center',minWidth:0,overflow:'hidden'}}>
+                <span className="donut-legend-dot" style={{background:seg.color,flexShrink:0}}/>
+                <span className="jp" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{seg.name}</span>
+              </span>
+              <span style={{display:'flex',gap:5,alignItems:'baseline',flexShrink:0,marginLeft:4}}>
+                <span className="mono" style={{fontSize:9,color:'var(--ink-faint)'}}>{p}%</span>
+                <span className="mono" style={{fontSize:10,fontWeight:600}}>{yen(seg.value)}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HitokotoBlock({ avgPct, step, nextSteps, currentStepDef, recent3 }) {
+  const { yen } = window.U;
+  const lastMonth = recent3[recent3.length - 1];
+  const lastOver  = lastMonth && !lastMonth.ok;
+  const lines = [];
+  if (step === 0) {
+    lines.push(`現在の累計平均は${avgPct}%です。まず赤字を止めること（ステージ1）が最優先です。`);
+  } else {
+    lines.push(`累計平均${avgPct}%でステージ${step}をキープしています。`);
+    if (lastOver) lines.push('先月は単月で基準を超えましたが、傾向として問題ありません。');
+    if (nextSteps[0] && nextSteps[0].gap > 0) {
+      lines.push(`ステージ${nextSteps[0].step}へは②変動費を月${yen(nextSteps[0].gap)}削減すると届きます。`);
+      lines.push('②変動費の構成を見て、削れる品目を探してみましょう。');
+    } else if (nextSteps[0] && nextSteps[0].gap === 0) {
+      lines.push('クリア条件をすでに満たしています。次のステージへ移行を検討しましょう。');
+    }
+  }
+  const hlType = step >= 3 ? 'good' : step >= 1 ? 'warn' : 'alert';
+  return (
+    <div className={`hl hl-${hlType}`}>
+      <div className="hl-label">ひとこと</div>
+      {lines.map((l, i) => <div key={i} style={{marginTop: i===0?4:2}}>{l}</div>)}
+    </div>
+  );
+}
+
+// ── メインコンポーネント ──────────────────────────────
+function ScreenD({ items, totals }) {
+  const t    = window.U.today();
+  const data = calcStageData(items, totals);
+
+  if (!data) return (
+    <div className="view">
+      <div style={{padding:'16px 18px 10px'}}>
+        <div className="mono" style={{fontSize:11,color:'var(--ink-faint)'}}>{t.label}</div>
+        <div className="jp" style={{fontSize:26,fontWeight:600,marginTop:4}}>ステージ判定</div>
+      </div>
+      <div style={{padding:'0 16px'}}>
+        <div className="jp" style={{fontSize:13,color:'var(--ink-soft)',lineHeight:1.8}}>
+          まだデータがありません。<br/>1ヶ月分の実績が確定したら表示されます。
+        </div>
+      </div>
+    </div>
+  );
+
+  const { passed, avgExp12, avgPct, avgE1, avgE2, step, currentStepDef, currentLimit, recent3, nextSteps, donutGroups } = data;
+
+  return (
+    <div className="view">
+      <div style={{padding:'16px 18px 10px'}}>
+        <div className="mono" style={{fontSize:11,color:'var(--ink-faint)'}}>{t.label}</div>
+        <div className="jp" style={{fontSize:26,fontWeight:600,marginTop:4}}>ステージ判定</div>
+        <div className="jp" style={{fontSize:12,color:'var(--ink-soft)',marginTop:2}}>現在地と次のステージへの道筋</div>
+      </div>
+      <div style={{padding:'0 16px 40px'}}>
+
+        {/* ② 現在のステージカード */}
+        <div className="sec">現在のステージ</div>
+        <CurrentStepCard stepDef={currentStepDef} avgPct={avgPct}/>
+
+        {/* ③ ステージガイド */}
+        <div className="sec">ステージガイド</div>
+        <div className="gcard" style={{marginBottom:14}}>
+          <div className="gcard-body" style={{padding:'12px 14px'}}>
+            <StageGuide currentStep={step} nextSteps={nextSteps}/>
+          </div>
+        </div>
+
+        {/* ④ 累計平均 */}
+        <div className="sec">敵①②の累計平均（{passed}ヶ月確定）</div>
+        <ExpenseRateBlock avgE1={avgE1} avgE2={avgE2} avgPct={avgPct} step={step}/>
+
+        {/* ⑤ 次のステージまでの差 */}
+        {nextSteps.length > 0 && (
+          <>
+            <div className="sec">次のステージまでの差</div>
+            <NextStepGapBlock nextSteps={nextSteps} avgPct={avgPct}/>
+          </>
+        )}
+
+        {/* ⑥ 直近3ヶ月 */}
+        <div className="sec">直近3ヶ月の達成状況</div>
+        <div className="gcard" style={{marginBottom:14}}>
+          <div className="gcard-body">
+            <RecentMonthsBlock recent3={recent3} currentStepDef={currentStepDef} currentLimit={currentLimit}/>
+          </div>
+        </div>
+
+        {/* ⑦ 支出構成 */}
+        <div className="sec">支出構成（予算ベース）</div>
+        <div className="donut-grid">
+          {donutGroups.map((g, i) => <DonutCard key={i} {...g}/>)}
+        </div>
+
+        {/* ⑧ ひとこと */}
+        <HitokotoBlock avgPct={avgPct} step={step} nextSteps={nextSteps} currentStepDef={currentStepDef} recent3={recent3}/>
+
+      </div>
+    </div>
+  );
+}
+window.ScreenD = ScreenD;
+</script>
+
+<!-- AppShell -->
+<script type="text/babel" data-presets="react">
+function App(){
+  const[state,setState]=React.useState({status:'loading',data:null,error:null});
+  const[view,setView]=React.useState('a');
+  const load=React.useCallback(async()=>{
+    setState({status:'loading',data:null,error:null});
+    try{const data=await window.loadAll();setState({status:'ready',data,error:null});}
+    catch(e){console.error(e);setState({status:'error',data:null,error:e?.message||String(e)});}
+  },[]);
+  React.useEffect(()=>{load();},[load]);
+  React.useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[view]);
+  if(state.status==='loading')return(<div className="fullscreen"><div className="state-card"><div className="spinner"/><div className="state-title jp">読み込み中…</div><div className="state-body jp">スプレッドシートからデータを取得しています</div></div></div>);
+  if(state.status==='error')return(<div className="fullscreen"><div className="state-card"><div className="state-title jp" style={{color:'var(--red)'}}>データを読み込めませんでした</div><div className="state-body jp">スプレッドシートの共有設定を確認してください。<br/>（リンクを知っている全員が「閲覧者」以上）</div>{state.error&&<div className="err-msg">{state.error}</div>}<button className="retry-btn jp" onClick={load}>再読み込み</button></div></div>);
+  const{items,totals}=state.data;
+  const TABS=[{key:'a',label:'振り返り',icon:'📊'},{key:'b',label:'グループ',icon:'🗂'},{key:'c',label:'品目',icon:'📋'},{key:'d',label:'ステージ',icon:'🎯'}];
+  return(
+    <div className="app">
+      {view==='a'&&<ScreenA items={items} totals={totals}/>}
+      {view==='b'&&<ScreenB items={items}/>}
+      {view==='c'&&<ScreenC items={items}/>}
+      {view==='d'&&<ScreenD items={items} totals={totals}/>}
+      <div className="tabbar">
+        {TABS.map(tab=>(<div key={tab.key} className={`tabbar-item${view===tab.key?' tabbar-active':''}`} onClick={()=>setView(tab.key)}><div className="tabbar-icon">{tab.icon}</div><div className="jp">{tab.label}</div></div>))}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
+
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"/>
 <title>残りいくら</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
